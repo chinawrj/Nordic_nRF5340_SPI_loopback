@@ -24,6 +24,16 @@
 LOG_MODULE_REGISTER(spi_loopback, LOG_LEVEL_INF);
 
 #define SPI_NODE        DT_NODELABEL(spi4)
+
+/*
+ * The `nrf5340bsim` simulator board has no SPIM4 peripheral, so the
+ * `spi4` node does not exist in its devicetree. Compile the loopback
+ * thread only on boards that actually provide the bus; on bsim,
+ * `spi_loopback_start()` becomes a no-op so the BLE half of the app
+ * still builds and runs under the simulator (covers P2 AC-R2).
+ */
+#if DT_NODE_EXISTS(SPI_NODE) && DT_NODE_HAS_STATUS(SPI_NODE, okay)
+
 #define SPI_FREQ_HZ     DT_PROP(SPI_NODE, clock_frequency)
 #define TEST_BUF_LEN    32U
 #define TEST_PERIOD_MS  1000
@@ -106,3 +116,13 @@ int spi_loopback_start(void)
 	k_thread_name_set(tid, "spi_loopback");
 	return 0;
 }
+
+#else /* !DT_NODE_EXISTS(spi4) — e.g. nrf5340bsim */
+
+int spi_loopback_start(void)
+{
+	LOG_WRN("spi4 node not present in devicetree; loopback disabled");
+	return 0;
+}
+
+#endif

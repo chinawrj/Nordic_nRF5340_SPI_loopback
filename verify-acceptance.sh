@@ -142,6 +142,29 @@ check "AC-5.b"   ".gitignore excludes .west/"          grep -qE '^\.west/$' .git
 check "AC-5.c"   ".gitignore excludes .venv/"          grep -qE '^\.venv/$' .gitignore
 check "AC-4"     "README contains LLM usage statement" grep -qiE 'llm usage|llm / tool|copilot|claude' README.md
 
+# ---- P2 AC-R2: bsim board compile (optional) ----
+# Runs only when BSIM_OUT_PATH+BSIM_COMPONENTS_PATH are already set and
+# point to a built BabbleSim install. Compile-only; does not run the sim.
+banner "P2: nrf5340bsim compile (optional)"
+if [ -n "${BSIM_OUT_PATH:-}" ] && [ -n "${BSIM_COMPONENTS_PATH:-}" ] && \
+   [ -d "${BSIM_OUT_PATH}" ] && [ -d "${BSIM_COMPONENTS_PATH}" ]; then
+	BSIM_BUILD_DIR="build-bsim"
+	rm -rf "${BSIM_BUILD_DIR}"
+	set +e
+	west build -b nrf5340bsim/nrf5340/cpuapp --build-dir "${BSIM_BUILD_DIR}" \
+		>/tmp/verify_bsim.log 2>&1
+	BSIM_RC=$?
+	set -e
+	if [ "${BSIM_RC}" -eq 0 ] && [ -x "${BSIM_BUILD_DIR}/${APP_NAME}/zephyr/zephyr.exe" ]; then
+		pass "AC-R2" "nrf5340bsim/nrf5340/cpuapp compiles (zephyr.exe produced)"
+	else
+		fail "AC-R2" "nrf5340bsim compile failed (rc=${BSIM_RC}); see /tmp/verify_bsim.log"
+	fi
+else
+	printf "  [%s] %-8s %s\n" "$(yel SKIP)" "AC-R2" \
+		"bsim vars not set (export BSIM_OUT_PATH + BSIM_COMPONENTS_PATH to enable)"
+fi
+
 # ---- Summary ----
 banner "Summary"
 printf "  Total:  %d\n" "${TOTAL}"
