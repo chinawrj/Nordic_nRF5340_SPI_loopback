@@ -165,6 +165,63 @@ else
 		"bsim vars not set (export BSIM_OUT_PATH + BSIM_COMPONENTS_PATH to enable)"
 fi
 
+# ---- P2 AC-V1: bsim runtime BLE HRS (peripheral <-> central) ----
+# Requires AC-R2 artefacts + a second bsim build of Zephyr's
+# samples/bluetooth/central_hr. Runs the bs_2G4_phy_v1 phy with both ELFs
+# attached and greps the central's log for HRS notify ("bpm"). Out-of-band
+# evidence goes to reports/bsim-hrs-central.log.
+banner "P2: bsim HRS run (AC-V1, invitation-gate)"
+BSIM_DUT="build-bsim/${APP_NAME}/zephyr/zephyr.exe"
+BSIM_CENTRAL="build-bsim-central/central_hr/zephyr/zephyr.exe"
+if [ -n "${BSIM_OUT_PATH:-}" ] && [ -n "${BSIM_COMPONENTS_PATH:-}" ] && \
+   [ -x "${BSIM_DUT}" ] && [ -x "${BSIM_CENTRAL}" ] && \
+   [ -x "${BSIM_OUT_PATH}/bin/bs_2G4_phy_v1" ]; then
+	mkdir -p reports
+	SIM_ID="nrf5340hrs-$(date +%s)"
+	CENTRAL_LOG="reports/bsim-hrs-central.log"
+	set +e
+	"${BSIM_OUT_PATH}/bin/bs_2G4_phy_v1" -s="${SIM_ID}" -D=2 -sim_length=10e6 \
+		>/tmp/verify_bsim_phy.log 2>&1 &
+	PHY_PID=$!
+	"${BSIM_DUT}" -s="${SIM_ID}" -d=0 >/tmp/verify_bsim_dut.log 2>&1 &
+	DUT_PID=$!
+	"${BSIM_CENTRAL}" -s="${SIM_ID}" -d=1 > "${CENTRAL_LOG}" 2>&1
+	wait "${DUT_PID}" "${PHY_PID}" 2>/dev/null
+	set -e
+	if grep -qiE '([0-9]+[[:space:]]*bpm|HRS.*measurement)' "${CENTRAL_LOG}"; then
+		pass "AC-V1" "bsim HRS notify observed in ${CENTRAL_LOG}"
+	else
+		fail "AC-V1" "bsim ran but no HR notify in ${CENTRAL_LOG} (check /tmp/verify_bsim_*.log)"
+	fi
+else
+	printf "  [%s] %-8s %s\n" "$(yel SKIP)" "AC-V1" \
+		"need build-bsim/ DUT + build-bsim-central/ + bs_2G4_phy_v1 (Day 10 target)"
+fi
+
+# ---- P2 AC-V2: Chrome Web Bluetooth verification (native_sim + userchan) ----
+# Out-of-band by nature: running the browser requires an interactive session
+# and a second BLE adapter. The harness only verifies that the evidence
+# artefacts exist and are recent, so CI can never silently mark it PASS.
+banner "P2: Chrome Web BLE HRS (AC-V2, invitation-gate)"
+CHROME_SHOT="reports/ble-hr-connected.png"
+CHROME_LOG="reports/ble-hr-log.txt"
+HCI_COUNT=$(command -v hciconfig >/dev/null 2>&1 && hciconfig 2>/dev/null | grep -c '^hci' || echo 0)
+if [ -f "${CHROME_SHOT}" ] && [ -f "${CHROME_LOG}" ]; then
+	# Artefact must be fresh (<7 days) to count as evidence for this commit.
+	if find "${CHROME_SHOT}" -mtime -7 -print -quit 2>/dev/null | grep -q .; then
+		if grep -qiE '(bpm|heart rate.*[0-9]|characteristicvalue)' "${CHROME_LOG}"; then
+			pass "AC-V2" "Chrome Web BLE evidence present (${CHROME_SHOT}, ${CHROME_LOG})"
+		else
+			fail "AC-V2" "${CHROME_LOG} exists but has no HR notify line"
+		fi
+	else
+		fail "AC-V2" "${CHROME_SHOT} older than 7 days (stale evidence; re-run the Patchright flow)"
+	fi
+else
+	printf "  [%s] %-8s %s\n" "$(yel SKIP)" "AC-V2" \
+		"need ${CHROME_SHOT} + ${CHROME_LOG} from ble-web-bluetooth-debugger skill (HCI adapters seen: ${HCI_COUNT})"
+fi
+
 # ---- Summary ----
 banner "Summary"
 printf "  Total:  %d\n" "${TOTAL}"

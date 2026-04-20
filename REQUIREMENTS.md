@@ -176,6 +176,37 @@ Nordic_nRF5340_SPI_loopback/
 
 ## 6. 验收标准 (Acceptance Criteria)
 
+### 6.0 交付件状态总表（Delivery Status Snapshot）
+
+> 每日 wrap-up 时刷新这张表。**面试官邀请门禁**（见 §6.3.2 + `.github/agents/dev-workflow.agent.md`）要求 §6.1 + AC-V1 + AC-V2 全绿才放行。
+
+| ID | 范畴 | 标题 | 优先级 | 状态 | 证据 / 命令 |
+|----|------|------|-------|------|-------------|
+| AC-1  | §6.1 | `west build --sysbuild` 退出 0 | P0 | ✅ | `verify-acceptance.sh`, CI run `24658312584` |
+| AC-2  | §6.1 | `merged.hex` 覆盖 app+net core | P0 | ✅ | harness AC-B4.d |
+| AC-3  | §6.1 | GitHub 仓库 + 可邀请 | P0 | ✅ (repo live, invite gated by §6.3.2) | `chinawrj/Nordic_nRF5340_SPI_loopback` |
+| AC-4  | §6.1 | README LLM 声明 | P0 | ✅ | harness AC-4 |
+| AC-5  | §6.1 | `.gitignore` 排除 build/west/venv | P0 | ✅ | harness AC-5.a–c |
+| AC-B1 | §6.2 | `--cmake-only` 成功 | P0 | ✅ | harness 隐含（AC-1 subset） |
+| AC-B2 | §6.2 | DTS spi4 okay/32MHz/pinctrl | P0 | ✅ | harness AC-B2.a–c |
+| AC-B3 | §6.2 | Kconfig SPI+BT+HRS+DIS+HCI_IPC | P0 | ✅ | harness AC-B3:* |
+| AC-B4 | §6.2 | Sysbuild multi-image (app+net) | P0 | ✅ | harness AC-B4.a–e |
+| AC-B5 | §6.2 | `rom_report` 含 bt_hrs_* / spi_nrfx_* | P1 | ✅ | `docs/reports/rom-report-cpuapp.txt` |
+| AC-B6 | §6.2 | `ram_report` 无 overflow | P1 | ✅ | `docs/reports/ram-report-cpuapp.txt` |
+| AC-B7 | §6.2 | 清空 build 重建仍绿 | P1 | ✅ | harness 每次 `rm -rf build` |
+| AC-B8 | §6.2 | `-DCONFIG_COMPILER_WARNINGS_AS_ERRORS=y` | P1 | ✅ | CI workflow step |
+| AC-Q1 | §6.4 | 零编译器 warning | P1 | ✅ | AC-B8 即保证 |
+| AC-Q2 | §6.4 | 代码风格一致 | P1 | ✅ | 手审 |
+| AC-Q3 | §6.4 | Git history 干净 | P1 | ✅ | 语义 commit 到 Day 9 |
+| AC-R2 | §6.3 | `nrf5340bsim/nrf5340/cpuapp` 编译 | P2 | ✅ | harness "P2: nrf5340bsim compile" |
+| **AC-V1** | §6.3.2 | **bsim run: HRS peripheral↔central, notify 可见** | **P2 (gate)** | ⏳ Day 10 target | `harness "P2: bsim HRS run"` 待实装 |
+| **AC-V2** | §6.3.2 | **native_sim + Chrome Web Bluetooth 端到端收到 HR** | **P2 (gate)** | ⏳ Day 10+ target | `reports/ble-hr-connected.png` 需生成 |
+| AC-R1 | §6.3 | native_sim 冒烟（可选） | P2 | N/A | AC-V2 覆盖了 native_sim 构建 |
+| AC-R3 | §6.3 | bsim 端到端 BLE HRS（AC-V1 超集） | P2 | ⏳ 被 AC-V1 取代 | — |
+| AC-R4 | §6.3 | Twister 自动化 | P2 | ✅ | `sample.yaml` 已加 |
+
+图例：✅ 已达成 / ⏳ 规划中 / ⛔ 阻塞 / N/A 不适用。
+
 ### 6.1 基础验收（邮件明确要求）
 - [ ] AC-1: `west build -b nrf5340dk/nrf5340/cpuapp --sysbuild` 返回 0，无 error、无关键 warning
 - [ ] AC-2: build 输出包含 `merged.hex`（app + net core 合并镜像）
@@ -218,6 +249,48 @@ Nordic_nRF5340_SPI_loopback/
   
   验证：Central 能扫描到设备名 `nRF5340_HR`，连接后能收到 HRS notification（心率值）。
 - [ ] **AC-R4 (Twister 自动化)**：增加 `sample.yaml`，用 `twister -p nrf5340dk/nrf5340/cpuapp --build-only` 自动化 build 回归；若加 bsim 则 `--platform nrf5340bsim/nrf5340/cpuapp` 跑运行回归
+
+### 6.3.2 硬件缺席下的运行期 BLE 验证（Day 9 新增，邀请门禁）
+
+> 背景：clean build + AC-R2 compile-only 证明了配置与编译正确，但没有证明 **BLE HRS 应用代码在运行期行为正确**。对无硬件的面试官，他要么自己 flash 到 DK、要么只能看日志截图。为了在不依赖面试官自备硬件的前提下给出可复现的运行期证据，加以下两条 **P2 运行期 AC**。二者覆盖两种不同的 phy：纯虚拟（bsim）与真实 host adapter（HCI user-channel）。
+>
+> **邀请门禁**：`AC-V1` 与 `AC-V2` 双绿后，才允许发面试官 invitation（规则写在 `.github/agents/dev-workflow.agent.md`）。这是 Day 9 用户明示的新约束。
+
+#### AC-V1 — bsim 端到端 HRS（纯虚拟 phy）
+
+**前置**：BabbleSim 已装，`BSIM_OUT_PATH` / `BSIM_COMPONENTS_PATH` 已导出（Day 7 已满足）。
+
+- [ ] **AC-V1.a** 把本项目（HRS peripheral）编译成 `nrf5340bsim/nrf5340/cpuapp`（AC-R2 已证实可行）
+- [ ] **AC-V1.b** 将 Zephyr `samples/bluetooth/central_hr` 同样编成 `nrf5340bsim/nrf5340/cpuapp`（单独 build-dir，例如 `build-bsim-central/`）
+- [ ] **AC-V1.c** 用 `bs_2G4_phy_v1 -s=<sim_id> -D=2` 启动 phy，两个 `zephyr.exe -s=<sim_id> -d=0/1` 分别加入
+- [ ] **AC-V1.d** Central 侧日志可 grep 到：
+  - `Device found: <addr> (RSSI ...) C: 0 connectable: 1`（或等价 "found nRF5340_HR"）
+  - `Connected:` + `HRS: discovery completed`
+  - 至少 3 条 `HRS Measurement: <N> bpm`（证明 notify 路径正常）
+- [ ] **AC-V1.e** 将 central 日志存至 `reports/bsim-hrs-central.log`，作为验收证据
+
+验证脚本（大致）：
+```bash
+sim_id=nrf5340hrs-$(date +%s)
+(cd $BSIM_OUT_PATH/bin && ./bs_2G4_phy_v1 -s=$sim_id -D=2 -sim_length=10e6) &
+./build-bsim/Nordic_nRF5340_SPI_loopback/zephyr/zephyr.exe -s=$sim_id -d=0 &
+./build-bsim-central/central_hr/zephyr/zephyr.exe -s=$sim_id -d=1 | tee reports/bsim-hrs-central.log
+wait
+grep -q 'bpm' reports/bsim-hrs-central.log
+```
+
+#### AC-V2 — native_sim + Chrome Web Bluetooth（真实 2.4 GHz phy）
+
+**前置**：两个 BLE adapter（系统 `hci0` + USB dongle `hci1`）；dongle 用 `sudo rfkill unblock bluetooth && sudo hciconfig hci1 up`。
+
+- [ ] **AC-V2.a** 新增 `native_sim` 配置：在 `boards/` 下（或 `native_sim.conf` overlay）加 `CONFIG_BT_HCI_USERCHAN=y`、保留 HRS，关闭 SPIM4（已被 Day 7 的 `DT_NODE_EXISTS` 守卫覆盖）
+- [ ] **AC-V2.b** `west build -b native_sim --build-dir build-native -- -DCONF_FILE="prj.conf;native_sim.conf"` 产出 `zephyr.exe`
+- [ ] **AC-V2.c** 以 `sudo ./zephyr.exe --bt-dev=hci1` 启动，确认控制台打印 `Bluetooth initialized` + `Advertising as nRF5340_HR`
+- [ ] **AC-V2.d** 用 **ble-web-bluetooth-debugger** skill 的 Patchright 脚本，在 Chrome 里通过 `hci0` 扫描并连接 `nRF5340_HR`，订阅 0x2A37 notify
+- [ ] **AC-V2.e** 浏览器里 `#hr-value` 显示非空 bpm 至少 5 秒
+- [ ] **AC-V2.f** `reports/ble-hr-connected.png` 截图保存（Patchright 自动输出）；`reports/ble-hr-log.txt` 保存 notify 日志
+
+评审证据：`reports/ble-hr-connected.png` 直接放进 README 的 verification 段，让面试官无需本地复现就能看到 end-to-end 行为。
 
 ### 6.4 静态代码质量（免费拿到的保证）
 

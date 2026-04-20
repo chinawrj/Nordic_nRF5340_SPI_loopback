@@ -57,8 +57,32 @@ name: "dev-workflow"
 
 ### P2 加分项
 
-- [ ] AC-R2: `west build -b nrf5340bsim/nrf5340/cpuapp` 编译成功
-- [ ] AC-R4: 增加 `sample.yaml` 支持 Twister 自动化
+- [x] AC-R2: `west build -b nrf5340bsim/nrf5340/cpuapp` 编译成功
+- [x] AC-R4: 增加 `sample.yaml` 支持 Twister 自动化
+- [ ] **AC-V1**: bsim 端到端 HRS —— peripheral（本项目）↔ central (`samples/bluetooth/central_hr`)，central 日志看到 `bpm` notify（[REQUIREMENTS.md §6.3.2](../../REQUIREMENTS.md)）
+- [ ] **AC-V2**: `native_sim` + `CONFIG_BT_HCI_USERCHAN=y` + USB BLE dongle，Chrome Web Bluetooth 经 ble-web-bluetooth-debugger skill 端到端收到 HR notify，`reports/ble-hr-connected.png` 存档
+
+## 🚪 邀请门禁 (Invitation Gate)
+
+**规则（Day 9 新增，用户明示）**：面试官 invitation（`gh repo` collaborator add + 邮件）**不得**在以下三道闸全绿前发出。
+
+| 闸 | 内容 | 证据来源 |
+|----|------|---------|
+| **Gate-HW** | Hardware 目标镜像 clean build —— AC-1~AC-5 + AC-B1~B8 + AC-Q1~Q3 全绿 | `verify-acceptance.sh` 24/24 PASS + CI `build.yml` 最新 run GREEN |
+| **Gate-SIM-BSIM** | Sim 镜像跑起来 BLE —— AC-V1 达成 | `reports/bsim-hrs-central.log` 含 ≥3 条 `bpm` |
+| **Gate-SIM-CHROME** | Sim 镜像被外部 client 验证 —— AC-V2 达成 | `reports/ble-hr-connected.png` + `reports/ble-hr-log.txt` |
+
+**理由**：面试官多半没有 DK 硬件，clean build 只是可编译证据；加 Gate-SIM-* 后，面试官 clone 仓库后就能看到：
+1. DK build 产出 `merged.hex`（Gate-HW）
+2. bsim 双进程握手截图 / 日志（Gate-SIM-BSIM）
+3. Chrome 浏览器里真实 2.4 GHz 频段上收到的 HR notify 截图（Gate-SIM-CHROME）
+
+三层证据递进，覆盖「编译 → 虚拟运行 → 真实 radio」完整链路，无需面试官准备任何 Nordic 硬件。
+
+**执行约束**：
+- 每日 wrap-up 时同步 `REQUIREMENTS.md §6` 顶部的状态表 —— 这是 gate 状态的单一真相源
+- 发邀请前必须在当前 commit 上跑一次 `verify-acceptance.sh`，确认 AC-V1 + AC-V2 不是 `[SKIP]` 而是 `[PASS]`
+- 允许先把仓库设 public 并加 CI badge，但 `gh repo edit --add-collaborator` / 发邮件这一步锁在闸后
 
 ## 工作模式
 
@@ -235,6 +259,7 @@ chore: 构建/工具变更
 - ❌ 不要将 build/ 或 .west/ 提交到仓库
 - ❌ 不要修改 NCS SDK 源码（只通过 overlay/conf 配置）
 - ❌ 不要在 prj.conf 中启用不必要的模块（增加 footprint）
+- ❌ **不得在邀请门禁（Gate-HW + Gate-SIM-BSIM + Gate-SIM-CHROME）未全绿前发出面试官 invitation**（见 🚪 邀请门禁段）
 
 ## Skill 反馈 (Feedback Loop)
 
