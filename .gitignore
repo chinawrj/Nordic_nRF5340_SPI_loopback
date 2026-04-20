@@ -29,3 +29,5 @@ __pycache__/
 # nRF Connect for VS Code
 .nrfconnect/
 build-bsim/
+build-bsim52/
+build-bsim-*/

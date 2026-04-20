@@ -166,36 +166,44 @@ else
 fi
 
 # ---- P2 AC-V1: bsim runtime BLE HRS (peripheral <-> central) ----
-# Requires AC-R2 artefacts + a second bsim build of Zephyr's
-# samples/bluetooth/central_hr. Runs the bs_2G4_phy_v1 phy with both ELFs
-# attached and greps the central's log for HRS notify ("bpm"). Out-of-band
-# evidence goes to reports/bsim-hrs-central.log.
+# Builds our project on nrf52_bsim (board-agnostic, single-core; NCS v2.9.0's
+# nrf5340bsim BLE IPC path is broken), pairs against Zephyr's canonical
+# central_hr_peripheral_hr testapp over the bs_2G4_phy_v1 simulated radio,
+# and counts HRS notifications in reports/bsim-hrs-central.log.
+# See scripts/bsim-hrs/ for the overlay + Kconfig that disable SDC and
+# select BT_LL_SW_SPLIT, and the build/run scripts driven here.
 banner "P2: bsim HRS run (AC-V1, invitation-gate)"
-BSIM_DUT="build-bsim/${APP_NAME}/zephyr/zephyr.exe"
-BSIM_CENTRAL="build-bsim-central/central_hr/zephyr/zephyr.exe"
+BSIM_DUT="build-bsim52/${APP_NAME}/zephyr/zephyr.exe"
+BSIM_CENTRAL="${BSIM_OUT_PATH:-/nonexistent}/bin/bs_nrf52_bsim_tests_bsim_bluetooth_samples_central_hr_peripheral_hr_prj_conf"
 if [ -n "${BSIM_OUT_PATH:-}" ] && [ -n "${BSIM_COMPONENTS_PATH:-}" ] && \
-   [ -x "${BSIM_DUT}" ] && [ -x "${BSIM_CENTRAL}" ] && \
    [ -x "${BSIM_OUT_PATH}/bin/bs_2G4_phy_v1" ]; then
-	mkdir -p reports
-	SIM_ID="nrf5340hrs-$(date +%s)"
-	CENTRAL_LOG="reports/bsim-hrs-central.log"
-	set +e
-	"${BSIM_OUT_PATH}/bin/bs_2G4_phy_v1" -s="${SIM_ID}" -D=2 -sim_length=10e6 \
-		>/tmp/verify_bsim_phy.log 2>&1 &
-	PHY_PID=$!
-	"${BSIM_DUT}" -s="${SIM_ID}" -d=0 >/tmp/verify_bsim_dut.log 2>&1 &
-	DUT_PID=$!
-	"${BSIM_CENTRAL}" -s="${SIM_ID}" -d=1 > "${CENTRAL_LOG}" 2>&1
-	wait "${DUT_PID}" "${PHY_PID}" 2>/dev/null
-	set -e
-	if grep -qiE '([0-9]+[[:space:]]*bpm|HRS.*measurement)' "${CENTRAL_LOG}"; then
-		pass "AC-V1" "bsim HRS notify observed in ${CENTRAL_LOG}"
+	# Build if artefacts are missing.
+	if [ ! -x "${BSIM_DUT}" ] || [ ! -x "${BSIM_CENTRAL}" ]; then
+		if ! bash scripts/bsim-hrs/build.sh >/tmp/verify_bsim_build.log 2>&1; then
+			fail "AC-V1" "bsim build failed (see /tmp/verify_bsim_build.log)"
+			BSIM_V1_BUILT=no
+		else
+			BSIM_V1_BUILT=yes
+		fi
 	else
-		fail "AC-V1" "bsim ran but no HR notify in ${CENTRAL_LOG} (check /tmp/verify_bsim_*.log)"
+		BSIM_V1_BUILT=yes
+	fi
+	if [ "${BSIM_V1_BUILT:-no}" = "yes" ]; then
+		set +e
+		bash scripts/bsim-hrs/run.sh >/tmp/verify_bsim_run.log 2>&1
+		RUN_RC=$?
+		set -e
+		CENTRAL_LOG="reports/bsim-hrs-central.log"
+		NOTIFY_COUNT=$(grep -cE 'NOTIFICATION.*length 2' "${CENTRAL_LOG}" 2>/dev/null || echo 0)
+		if [ "${RUN_RC}" -eq 0 ] && [ "${NOTIFY_COUNT}" -ge 3 ]; then
+			pass "AC-V1" "bsim HRS: ${NOTIFY_COUNT} notifications in ${CENTRAL_LOG}"
+		else
+			fail "AC-V1" "bsim run rc=${RUN_RC}, notifications=${NOTIFY_COUNT} (see /tmp/verify_bsim_run.log)"
+		fi
 	fi
 else
 	printf "  [%s] %-8s %s\n" "$(yel SKIP)" "AC-V1" \
-		"need build-bsim/ DUT + build-bsim-central/ + bs_2G4_phy_v1 (Day 10 target)"
+		"bsim vars not set or phy missing (export BSIM_OUT_PATH + BSIM_COMPONENTS_PATH to enable)"
 fi
 
 # ---- P2 AC-V2: Chrome Web Bluetooth verification (native_sim + userchan) ----

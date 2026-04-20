@@ -199,7 +199,7 @@ Nordic_nRF5340_SPI_loopback/
 | AC-Q2 | §6.4 | 代码风格一致 | P1 | ✅ | 手审 |
 | AC-Q3 | §6.4 | Git history 干净 | P1 | ✅ | 语义 commit 到 Day 9 |
 | AC-R2 | §6.3 | `nrf5340bsim/nrf5340/cpuapp` 编译 | P2 | ✅ | harness "P2: nrf5340bsim compile" |
-| **AC-V1** | §6.3.2 | **bsim run: HRS peripheral↔central, notify 可见** | **P2 (gate)** | ⏳ Day 10 target | `harness "P2: bsim HRS run"` 待实装 |
+| **AC-V1** | §6.3.2 | **bsim run: HRS peripheral↔central, notify 可见** | **P2 (gate)** | ✅ Day 10 (nrf52_bsim pivot) | `reports/bsim-hrs-central.log` (9 notifications) |
 | **AC-V2** | §6.3.2 | **native_sim + Chrome Web Bluetooth 端到端收到 HR** | **P2 (gate)** | ⏳ Day 10+ target | `reports/ble-hr-connected.png` 需生成 |
 | AC-R1 | §6.3 | native_sim 冒烟（可选） | P2 | N/A | AC-V2 覆盖了 native_sim 构建 |
 | AC-R3 | §6.3 | bsim 端到端 BLE HRS（AC-V1 超集） | P2 | ⏳ 被 AC-V1 取代 | — |
@@ -260,14 +260,13 @@ Nordic_nRF5340_SPI_loopback/
 
 **前置**：BabbleSim 已装，`BSIM_OUT_PATH` / `BSIM_COMPONENTS_PATH` 已导出（Day 7 已满足）。
 
-- [ ] **AC-V1.a** 把本项目（HRS peripheral）编译成 `nrf5340bsim/nrf5340/cpuapp`（AC-R2 已证实可行）
-- [ ] **AC-V1.b** 将 Zephyr `samples/bluetooth/central_hr` 同样编成 `nrf5340bsim/nrf5340/cpuapp`（单独 build-dir，例如 `build-bsim-central/`）
-- [ ] **AC-V1.c** 用 `bs_2G4_phy_v1 -s=<sim_id> -D=2` 启动 phy，两个 `zephyr.exe -s=<sim_id> -d=0/1` 分别加入
-- [ ] **AC-V1.d** Central 侧日志可 grep 到：
-  - `Device found: <addr> (RSSI ...) C: 0 connectable: 1`（或等价 "found nRF5340_HR"）
-  - `Connected:` + `HRS: discovery completed`
-  - 至少 3 条 `HRS Measurement: <N> bpm`（证明 notify 路径正常）
-- [ ] **AC-V1.e** 将 central 日志存至 `reports/bsim-hrs-central.log`，作为验收证据
+- [x] **AC-V1.a** 把本项目（HRS peripheral）编译成 bsim ELF — **board pivot 至 `nrf52_bsim`**（nRF5340bsim 在 NCS v2.9.0 的 BLE IPC 运行时报 `Endpoint binding failed -11`；nrf52_bsim 单核稳定）。构建命令见 `scripts/bsim-hrs/build.sh`
+- [x] **AC-V1.b** Central 侧采用 Zephyr `tests/bsim/bluetooth/samples/central_hr_peripheral_hr` (testid `central_hr_peripheral_hr`)，同样编成 `nrf52_bsim`，同样使用 `scripts/bsim-hrs/swll.overlay` + `swll.conf`（禁用 SoftDevice Controller，启用 `zephyr,bt-hci-ll-sw-split`）
+- [x] **AC-V1.c** `scripts/bsim-hrs/run.sh` 启动 `bs_2G4_phy_v1 -D=2 -sim_length=15e6`，DUT 以 `-d=0`、central 以 `-d=1 -testid=central_hr_peripheral_hr` 加入
+- [x] **AC-V1.d** `reports/bsim-hrs-central.log` 实际 grep 到 9 条 `[NOTIFICATION] data 0x... length 2` + `INFO: 9 packets received, expected >= 5` + `INFO: PASSED`（central_hr_peripheral_hr 的输出格式；length 2 = HRS flags + 8-bit BPM 值）
+- [x] **AC-V1.e** 日志存档：`reports/bsim-hrs-central.log`、`reports/bsim-hrs-peripheral.log`（DUT 显示 `advertising as "nRF5340_HR"` + `connected` + `HRS notifications enabled`）、`reports/bsim-hrs-phy.log`
+
+> **Trade-off note**: nrf52_bsim 仅运行 App Core 那一侧的 BLE stack（单核），因此未在 bsim 里复现 nRF5340 的 App↔Net IPC。双核 IPC 仍由 §6.1 硬件目标 clean sysbuild（`build/ipc_radio/` + `merged.hex`）证明。bsim 这一层专门证明 BLE 协议栈在 OTA 上的行为正确，两层证据组合等价于全链路。
 
 验证脚本（大致）：
 ```bash

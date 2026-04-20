@@ -1,0 +1,24 @@
+/*
+ * Devicetree overlay for running nRF Connect SDK samples on nrf52_bsim.
+ *
+ * NCS v2.9.0 defaults the nRF52 controller choice to BT_LL_SOFTDEVICE,
+ * which activates the bt_hci_sdc DT node. SDC has no BabbleSim backend,
+ * so the link stage fails with `undefined reference to __device_dts_ord_*`.
+ *
+ * This overlay disables the SDC node and activates Zephyr's software-split
+ * link-layer controller instead (CONFIG_BT_LL_SW_SPLIT=y must accompany).
+ */
+
+&bt_hci_sdc {
+	status = "disabled";
+};
+
+&bt_hci_controller {
+	status = "okay";
+};
+
+/ {
+	chosen {
+		zephyr,bt-hci = &bt_hci_controller;
+	};
+};

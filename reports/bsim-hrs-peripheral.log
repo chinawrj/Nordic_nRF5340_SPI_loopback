@@ -1,0 +1,16 @@
+d_00: @00:00:00.000000  *** Booting nRF Connect SDK v2.9.0-7787b2649840 ***
+d_00: @00:00:00.000000  *** Using Zephyr OS v3.7.99-1f8f3dc29142 ***
+d_00: @00:00:00.000000  [00:00:00.000,000] [0m<inf> main: nRF5340 SPI loopback + BLE HR starting[0m
+d_00: @00:00:00.000000  [00:00:00.000,000] [0m<inf> bt_hci_core: HW Platform: Nordic Semiconductor (0x0002)[0m
+d_00: @00:00:00.000000  [00:00:00.000,000] [0m<inf> bt_hci_core: HW Variant: nRF52x (0x0002)[0m
+d_00: @00:00:00.000000  [00:00:00.000,000] [0m<inf> bt_hci_core: Firmware: Standard Bluetooth controller (0x00) Version 3.7 Build 99[0m
+d_00: @00:00:00.000000  [00:00:00.000,000] [1;33m<wrn> bt_id: No static addresses stored in controller[0m
+d_00: @00:00:01.002625  [00:00:00.002,624] [0m<inf> bt_hci_core: Identity: FD:9E:B2:48:47:39 (random)[0m
+d_00: @00:00:01.002625  [00:00:00.002,624] [0m<inf> bt_hci_core: HCI: version 5.4 (0x0d) revision 0x0000, manufacturer 0x0059[0m
+d_00: @00:00:01.002625  [00:00:00.002,624] [0m<inf> bt_hci_core: LMP: version 5.4 (0x0d) subver 0xffff[0m
+d_00: @00:00:01.002625  [00:00:00.002,624] [0m<inf> ble_hrs: BLE stack enabled[0m
+d_00: @00:00:01.002625  [00:00:00.002,624] [0m<inf> ble_hrs: advertising as "nRF5340_HR"[0m
+d_00: @00:00:01.002625  [00:00:00.002,624] [1;33m<wrn> spi_loopback: spi4 node not present in devicetree; loopback disabled[0m
+d_00: @00:00:01.002625  [00:00:00.002,624] [0m<inf> main: init complete[0m
+d_00: @00:00:01.002625  [00:00:00.435,241] [0m<inf> ble_hrs: connected[0m
+d_00: @00:00:01.002625  [00:00:00.836,608] [0m<inf> hrs: HRS notifications enabled[0m
