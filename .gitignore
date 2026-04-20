@@ -1,0 +1,30 @@
+# Build outputs
+build/
+build_*/
+twister-out/
+twister-out.*/
+
+# Zephyr / NCS workspace artefacts (should live outside the app repo)
+.west/
+zephyr/
+modules/
+nrf/
+nrfxlib/
+bootloader/
+tools/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Editor / OS
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# nRF Connect for VS Code
+.nrfconnect/
