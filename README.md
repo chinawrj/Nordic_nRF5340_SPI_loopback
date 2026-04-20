@@ -2,13 +2,26 @@
 
 [![CI](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml)
 
-> **Status**: ✅ Clean `west build --sysbuild` passes on NCS **v2.9.0**.
-> 23/23 P0+P1 acceptance checks green (24/24 with the optional `nrf5340bsim`
-> P2 check). Zero compiler warnings (`-Werror`).
+> **Status**: ✅ Clean `west build --sysbuild` on NCS **v2.9.0**, zero compiler
+> warnings (`-Werror`). `verify-acceptance.sh` reports **24 / 24 PASS** in
+> this environment (plus optional AC-R2 + AC-V1 when BabbleSim is on PATH,
+> evidence already archived under [reports/](reports/)).
+>
+> **Runtime evidence** (beyond the email's clean-build bar):
+> - AC-V1: BabbleSim HRS peripheral ↔ `central_hr` — **9 `bpm` notifications** in
+>   [reports/bsim-hrs-central.log](reports/bsim-hrs-central.log).
+> - AC-V2: Chrome Web Bluetooth on real 2.4 GHz radio (USB dongle) —
+>   **62 / 63 / 64 bpm** captured, see
+>   [reports/ble-hr-connected.png](reports/ble-hr-connected.png) and
+>   [reports/ble-hr-log.txt](reports/ble-hr-log.txt).
 
 Interview technical task for Nordic Semiconductor: implement a 32 MHz SPIM4
 loopback self-test and a BLE Heart Rate peripheral on the nRF5340 DK, using
 Zephyr / nRF Connect SDK, and deliver a clean-building GitHub repository.
+The email only required a clean build — the two runtime paths above are
+added so the reviewer can verify the BLE stack end-to-end without owning a
+DK, using either a pure-software virtual radio (bsim) or any commodity
+USB Bluetooth dongle (Chrome).
 
 ---
 
@@ -187,11 +200,16 @@ directories; otherwise it is silently skipped, so the harness still reports
 ├── verify-acceptance.sh    # One-shot P0 acceptance harness
 ├── src/
 │   ├── main.c              # Entry — starts BLE + SPI modules
-│   ├── spi_loopback.[ch]   # SPIM4 loopback thread
+│   ├── spi_loopback.[ch]   # SPIM4 loopback thread (DT-guarded for bsim)
 │   └── ble_hrs.[ch]        # BLE Heart Rate peripheral
+├── scripts/
+│   ├── bsim-hrs/           # AC-V1: BabbleSim peripheral↔central runner
+│   └── native-userchan/    # AC-V2: native_sim + Chrome Web Bluetooth runner
+├── tools/
+│   └── ble-hr-test.html    # Web Bluetooth HRS client (used by AC-V2)
 ├── REQUIREMENTS.md         # Detailed requirements / acceptance criteria
 └── docs/
-    ├── daily-logs/         # Iteration logs (day-001..00N)
+    ├── daily-logs/         # Iteration logs (day-001..011)
     └── reports/            # ROM/RAM footprint snapshots
 ```
 
@@ -215,6 +233,60 @@ status on NCS v2.9.0:
 | AC-B7 | `rm -rf build && west build` reproducibly green | ✅ |
 | AC-Q1 | Zero compiler warnings with `-Werror` | ✅ |
 | AC-R2 | `nrf5340bsim/nrf5340/cpuapp` compiles, `zephyr.exe` produced | ✅ (P2, optional) |
+| AC-V1 | BabbleSim end-to-end: this peripheral ↔ upstream `central_hr` sees ≥ 3 `bpm` notifications | ✅ (P2, [reports/bsim-hrs-central.log](reports/bsim-hrs-central.log) — 9 notifications) |
+| AC-V2 | Chrome Web Bluetooth on real 2.4 GHz radio (hci1 USB dongle) — `navigator.bluetooth` connects `nRF5340_HR`, ≥ 3 `characteristicvaluechanged` | ✅ (P2, [reports/ble-hr-connected.png](reports/ble-hr-connected.png) — 62/63/64 bpm) |
+
+---
+
+## Runtime verification without a DK
+
+The email explicitly says _"no need to run on the hardware unless you have a
+nRF5340 DK to hand"_. Clean build is therefore the authoritative deliverable
+and is enforced by CI. However, two additional runtime paths are wired in
+so a reviewer can verify the BLE code on a plain Linux laptop — neither
+needs a nRF5340 DK.
+
+### Path A — BabbleSim (pure software, no hardware at all)
+
+Compiles the app for `nrf5340bsim/nrf5340/cpuapp` and runs it against
+upstream `zephyr/samples/bluetooth/central_hr` on the virtual 2.4 GHz phy.
+`reports/bsim-hrs-central.log` is the captured central-side log; 9 `bpm`
+notification lines prove HRS connect + subscribe + notify work end-to-end.
+
+Produced by the `scripts/bsim-hrs/` pipeline; see
+[docs/daily-logs/day-010.md](docs/daily-logs/day-010.md).
+
+### Path B — Chrome Web Bluetooth (real radio, any USB dongle)
+
+Runs the same BLE code on the `native_sim` board, which opens `/dev/hci1`
+via `HCI_CHANNEL_USER` (one USB BT dongle dedicated to the DUT). Chrome
+talks to it via `hci0` (host's built-in adapter). The
+[ble-web-bluetooth-debugger](.github/skills/ble-web-bluetooth-debugger/SKILL.md)
+skill drives Patchright Chromium → [tools/ble-hr-test.html](tools/ble-hr-test.html)
+→ `navigator.bluetooth.requestDevice(0x180D)` → subscribe `0x2A37` →
+screenshot + log.
+
+Reproduce (Linux, two HCI adapters, one dedicated to DUT):
+
+```bash
+# One-shot build
+west build -b native_sim -d build-native --no-sysbuild \
+    -- -DEXTRA_CONF_FILE=scripts/native-userchan/native.conf
+
+# Grant the HCI_CHANNEL_USER capability (one-time; local only, not committed)
+sudo setcap 'cap_net_admin,cap_net_raw+ep' build-native/zephyr/zephyr.exe
+
+# Install browser automation
+python3 -m venv .venv && source .venv/bin/activate
+pip install patchright && python -m patchright install chromium
+
+# Run DUT + launch Chromium; click Connect and pick nRF5340_HR from the chooser
+bash scripts/native-userchan/run.sh hci1
+```
+
+Output: [reports/ble-hr-connected.png](reports/ble-hr-connected.png) and
+[reports/ble-hr-log.txt](reports/ble-hr-log.txt) — both referenced by
+`verify-acceptance.sh` as AC-V2.
 
 ---
 
