@@ -25,6 +25,51 @@ USB Bluetooth dongle (Chrome).
 
 ---
 
+## Reports & evidence
+
+The BLE Heart Rate peripheral has been verified end-to-end against a real
+Chrome browser over a real 2.4 GHz USB Bluetooth dongle. The screenshot
+below is the Chrome tab at the moment the Web Bluetooth client has
+connected to `nRF5340_HR`, subscribed to the HR Measurement characteristic
+(`0x2A37`) on the HRS service (`0x180D`), and received three consecutive
+notifications:
+
+![Chrome Web Bluetooth connected to nRF5340_HR, receiving 62/63/64 bpm](reports/ble-hr-connected.png)
+
+The adjacent log file ([reports/ble-hr-log.txt](reports/ble-hr-log.txt))
+captures the JavaScript event stream, reproduced here verbatim:
+
+```text
+[11:55:35.211] page loaded. navigator.bluetooth = present
+[11:55:35.502] status: requesting device...
+[11:55:40.564] device: nRF5340_HR id=dlngZiuD9TDWQaVeIYbQsg==
+[11:55:40.565] status: connecting GATT...
+[11:55:40.901] status: getting HRS service...
+[11:55:43.058] status: subscribed — waiting for notifications
+[11:55:43.106] characteristicvaluechanged: 62 bpm (heart rate)
+[11:55:44.138] characteristicvaluechanged: 63 bpm (heart rate)
+[11:55:45.130] characteristicvaluechanged: 64 bpm (heart rate)
+```
+
+This is **not** a simulator mock — it is the project's own `src/ble_hrs.c`
+running on `native_sim` and driving a commodity USB BT dongle via the
+Linux `HCI_CHANNEL_USER` raw socket; Chrome speaks to it across the air
+through the host's built-in BT adapter. The exact same `src/` tree, with
+a different `-b <board>` flag, also produces `merged.hex` for the nRF5340
+DK — see [Two images, one codebase](#two-images-one-codebase) below.
+
+Additional evidence under [reports/](reports/):
+
+| File | What it proves |
+|------|----------------|
+| [ble-hr-connected.png](reports/ble-hr-connected.png) | AC-V2: Chrome Web Bluetooth sees live HR notifications from the peripheral. |
+| [ble-hr-log.txt](reports/ble-hr-log.txt) | AC-V2: three `characteristicvaluechanged` events (62 / 63 / 64 bpm) logged by the page. |
+| [bsim-hrs-central.log](reports/bsim-hrs-central.log) | AC-V1: BabbleSim upstream `central_hr` receives 9 notifications from this peripheral on the virtual PHY. |
+| [bsim-hrs-peripheral.log](reports/bsim-hrs-peripheral.log) | AC-V1: peripheral-side view of the same bsim session (advertise → connect → notify). |
+| [rom-report-cpuapp.txt](docs/reports/rom-report-cpuapp.txt), [ram-report-cpuapp.txt](docs/reports/ram-report-cpuapp.txt) | Footprint snapshots for the DK app-core image. |
+
+---
+
 ## Features
 
 | # | Feature | Core | Notes |
