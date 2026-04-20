@@ -1,6 +1,7 @@
 # Build outputs
 build/
 build_*/
+build-*/
 twister-out/
 twister-out.*/
 
@@ -11,7 +12,6 @@ modules/
 nrf/
 nrfxlib/
 bootloader/
-tools/
 
 # Python
 .venv/
@@ -28,6 +28,6 @@ __pycache__/
 
 # nRF Connect for VS Code
 .nrfconnect/
-build-bsim/
-build-bsim52/
-build-bsim-*/
+
+# Runtime log (regenerated every run)
+reports/native-dut.log

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>BLE HR Debugger</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; background:#fafafa; }
+  #bpm { font-size: 72px; color:#c0392b; font-weight:bold; }
+  #status { margin: 8px 0; color:#333; }
+  #log { white-space: pre-wrap; background:#111; color:#0f0; padding:10px;
+         height: 300px; overflow:auto; font-family: monospace; font-size:12px; }
+  button { font-size: 16px; padding: 8px 16px; margin-right:8px; }
+</style>
+</head>
+<body>
+<h2>nRF5340_HR — Web Bluetooth HRS Client</h2>
+<button id="connect">Connect</button>
+<button id="disconnect" disabled>Disconnect</button>
+<div id="status">idle</div>
+<div>Heart Rate: <span id="bpm">-- bpm</span></div>
+<h3>Log</h3>
+<div id="log"></div>
+<script>
+const HRS_SERVICE = 0x180D;
+const HR_MEASURE  = 0x2A37;
+const logEl = document.getElementById('log');
+const bpmEl = document.getElementById('bpm');
+const statusEl = document.getElementById('status');
+const btnC = document.getElementById('connect');
+const btnD = document.getElementById('disconnect');
+let device = null, server = null;
+
+function log(msg) {
+  const ts = new Date().toISOString().slice(11,23);
+  const line = `[${ts}] ${msg}`;
+  console.log(line);
+  logEl.textContent += line + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setStatus(s){ statusEl.textContent = s; log('status: ' + s); }
+
+function parseHR(dv) {
+  const flags = dv.getUint8(0);
+  const is16 = (flags & 0x01) !== 0;
+  return is16 ? dv.getUint16(1, true) : dv.getUint8(1);
+}
+
+function onCharValue(ev){
+  const dv = ev.target.value;
+  const bpm = parseHR(dv);
+  bpmEl.textContent = `${bpm} bpm`;
+  log(`characteristicvaluechanged: ${bpm} bpm (heart rate)`);
+}
+
+async function connect() {
+  try {
+    setStatus('requesting device...');
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [HRS_SERVICE] }, { namePrefix: 'nRF5340' }],
+      optionalServices: [HRS_SERVICE],
+    });
+    log('device: ' + device.name + ' id=' + device.id);
+    device.addEventListener('gattserverdisconnected', () => {
+      setStatus('disconnected');
+      btnC.disabled = false; btnD.disabled = true;
+    });
+    setStatus('connecting GATT...');
+    server = await device.gatt.connect();
+    setStatus('getting HRS service...');
+    const svc = await server.getPrimaryService(HRS_SERVICE);
+    const ch = await svc.getCharacteristic(HR_MEASURE);
+    ch.addEventListener('characteristicvaluechanged', onCharValue);
+    await ch.startNotifications();
+    setStatus('subscribed — waiting for notifications');
+    btnC.disabled = true; btnD.disabled = false;
+  } catch (e) {
+    log('ERROR: ' + e.message);
+    setStatus('error');
+  }
+}
+
+async function disconnect() {
+  if (server && server.connected) server.disconnect();
+  setStatus('disconnected (manual)');
+  btnC.disabled = false; btnD.disabled = true;
+}
+
+btnC.addEventListener('click', connect);
+btnD.addEventListener('click', disconnect);
+log('page loaded. navigator.bluetooth = ' + (navigator.bluetooth ? 'present' : 'MISSING'));
+</script>
+</body>
+</html>

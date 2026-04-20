@@ -1,0 +1,9 @@
+[11:55:35.211] page loaded. navigator.bluetooth = present
+[11:55:35.502] status: requesting device...
+[11:55:40.564] device: nRF5340_HR id=dlngZiuD9TDWQaVeIYbQsg==
+[11:55:40.565] status: connecting GATT...
+[11:55:40.901] status: getting HRS service...
+[11:55:43.058] status: subscribed — waiting for notifications
+[11:55:43.106] characteristicvaluechanged: 62 bpm (heart rate)
+[11:55:44.138] characteristicvaluechanged: 63 bpm (heart rate)
+[11:55:45.130] characteristicvaluechanged: 64 bpm (heart rate)

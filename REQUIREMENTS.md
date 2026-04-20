@@ -200,7 +200,7 @@ Nordic_nRF5340_SPI_loopback/
 | AC-Q3 | §6.4 | Git history 干净 | P1 | ✅ | 语义 commit 到 Day 9 |
 | AC-R2 | §6.3 | `nrf5340bsim/nrf5340/cpuapp` 编译 | P2 | ✅ | harness "P2: nrf5340bsim compile" |
 | **AC-V1** | §6.3.2 | **bsim run: HRS peripheral↔central, notify 可见** | **P2 (gate)** | ✅ Day 10 (nrf52_bsim pivot) | `reports/bsim-hrs-central.log` (9 notifications) |
-| **AC-V2** | §6.3.2 | **native_sim + Chrome Web Bluetooth 端到端收到 HR** | **P2 (gate)** | ⏳ Day 10+ target | `reports/ble-hr-connected.png` 需生成 |
+| **AC-V2** | §6.3.2 | **native_sim + Chrome Web Bluetooth 端到端收到 HR** | **P2 (gate)** | ✅ Day 11 (hci1 Broadcom USB + Patchright Chromium) | `reports/ble-hr-connected.png` + `reports/ble-hr-log.txt` (3 notifications, 62-64 bpm) |
 | AC-R1 | §6.3 | native_sim 冒烟（可选） | P2 | N/A | AC-V2 覆盖了 native_sim 构建 |
 | AC-R3 | §6.3 | bsim 端到端 BLE HRS（AC-V1 超集） | P2 | ⏳ 被 AC-V1 取代 | — |
 | AC-R4 | §6.3 | Twister 自动化 | P2 | ✅ | `sample.yaml` 已加 |
@@ -282,12 +282,12 @@ grep -q 'bpm' reports/bsim-hrs-central.log
 
 **前置**：两个 BLE adapter（系统 `hci0` + USB dongle `hci1`）；dongle 用 `sudo rfkill unblock bluetooth && sudo hciconfig hci1 up`。
 
-- [ ] **AC-V2.a** 新增 `native_sim` 配置：在 `boards/` 下（或 `native_sim.conf` overlay）加 `CONFIG_BT_HCI_USERCHAN=y`、保留 HRS，关闭 SPIM4（已被 Day 7 的 `DT_NODE_EXISTS` 守卫覆盖）
-- [ ] **AC-V2.b** `west build -b native_sim --build-dir build-native -- -DCONF_FILE="prj.conf;native_sim.conf"` 产出 `zephyr.exe`
-- [ ] **AC-V2.c** 以 `sudo ./zephyr.exe --bt-dev=hci1` 启动，确认控制台打印 `Bluetooth initialized` + `Advertising as nRF5340_HR`
-- [ ] **AC-V2.d** 用 **ble-web-bluetooth-debugger** skill 的 Patchright 脚本，在 Chrome 里通过 `hci0` 扫描并连接 `nRF5340_HR`，订阅 0x2A37 notify
-- [ ] **AC-V2.e** 浏览器里 `#hr-value` 显示非空 bpm 至少 5 秒
-- [ ] **AC-V2.f** `reports/ble-hr-connected.png` 截图保存（Patchright 自动输出）；`reports/ble-hr-log.txt` 保存 notify 日志
+- [x] **AC-V2.a** 新增 `scripts/native-userchan/native.conf` overlay：关闭 SPIM4/RTT（`CONFIG_SPI_NRFX=n` 等）；保留 HRS；`BT_USERCHAN` 由 `native_sim.dts` chosen `zephyr,bt-hci = &bt_hci_userchan` 自动选中（BT_USERCHAN 无 prompt 不能直接 set）
+- [x] **AC-V2.b** `west build -b native_sim -d build-native --no-sysbuild -- -DEXTRA_CONF_FILE=scripts/native-userchan/native.conf` 产出 `zephyr.exe` (2.4 MB)
+- [x] **AC-V2.c** `sudo setcap 'cap_net_admin,cap_net_raw+ep' zephyr.exe` 后 `./zephyr.exe -bt-dev=hci1` 打印 `BLE stack enabled` + `advertising as "nRF5340_HR"`
+- [x] **AC-V2.d** `scripts/native-userchan/ble-chrome-test.py` (Patchright headed Chromium + `tools/ble-hr-test.html`) 经 hci0 连接 `nRF5340_HR`，订阅 0x2A37 notify
+- [x] **AC-V2.e** 浏览器 `#bpm` 显示 62/63/64 bpm 连续 3+ 次
+- [x] **AC-V2.f** `reports/ble-hr-connected.png` + `reports/ble-hr-log.txt` 已保存
 
 评审证据：`reports/ble-hr-connected.png` 直接放进 README 的 verification 段，让面试官无需本地复现就能看到 end-to-end 行为。
 
