@@ -33,6 +33,30 @@ USB Bluetooth dongle (Chrome).
 | 2 | BLE Heart Rate peripheral | App (host) + Net (controller) | Advertises as `nRF5340_HR`, notifies 1 Hz |
 | 3 | Dual-core build via sysbuild | App + Net | Produces `merged.hex` |
 
+### Two images, one codebase
+
+The same C sources in [src/](src/) produce **two independent firmware
+images**, selected purely by the `-b <board>` argument — no source-level
+`#ifdef BOARD_*` branching. SPIM4 is guarded at the Devicetree layer in
+[src/spi_loopback.c](src/spi_loopback.c) (`DT_NODE_EXISTS(spi4) &&
+DT_NODE_HAS_STATUS(spi4, okay)`), so on sim boards that have no SPIM4
+peripheral the loopback module collapses to a single `LOG_WRN` stub while
+the BLE half of the app is unchanged.
+
+| Image | Board | Output | Purpose |
+|-------|-------|--------|---------|
+| **HW** | `nrf5340dk/nrf5340/cpuapp` | `build/merged.hex` (app core + net core, sysbuild) | Ready to `west flash` onto a physical nRF5340 DK |
+| **SIM — bsim** | `nrf5340bsim/nrf5340/cpuapp` | `build-bsim/.../zephyr.exe` | BabbleSim virtual 2.4 GHz — runs against upstream `central_hr` (AC-V1) |
+| **SIM — native** | `native_sim` | `build-native/zephyr/zephyr.exe` | `HCI_CHANNEL_USER` on a commodity USB BT dongle — Chrome Web Bluetooth (AC-V2) |
+
+All three share `src/main.c`, `src/ble_hrs.[ch]`, `src/spi_loopback.[ch]`,
+and `prj.conf` **verbatim**. The only per-image plumbing is:
+
+- `app.overlay` — SPIM4 DT fragment (only matched on the DK board)
+- `sysbuild.conf` — pulls in `ipc_radio` for the DK net core (only honoured by sysbuild)
+- `scripts/native-userchan/native.conf` — three-line Kconfig overlay that
+  turns off `SPI_NRFX` / SEGGER RTT for the POSIX `native_sim` target
+
 **Memory footprint** (app core, cpuapp):
 - FLASH: **126 480 / 1 048 576 B (12.1 %)**
 - RAM: **33 000 / 458 752 B (7.2 %)**

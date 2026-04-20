@@ -1,106 +1,106 @@
 ---
 name: "automated-testing"
-description: "nRF5340 项目自动化构建验证与验收测试 — 基于 west build + 静态分析"
+description: "Automated build validation and acceptance testing for the nRF5340 project — based on west build + static analysis"
 ---
 
-# Skill: 自动化测试（Zephyr/NCS 版）
+# Skill: Automated Testing (Zephyr/NCS edition)
 
-## 用途
+## Purpose
 
-定义 nRF5340 Zephyr/NCS 项目的自动化构建验证与验收测试策略。
-本项目不要求硬件，核心验证手段是 **构建成功 + 静态分析**。
+Defines the automated build-validation and acceptance-testing strategy for the nRF5340 Zephyr/NCS project.
+This project does not require hardware; the primary verification approach is **build success + static analysis**.
 
-**何时使用：**
-- 每次代码修改后验证 clean build
-- 里程碑完成时运行完整验收检查
-- 发布前进行最终验证
-- 回归测试防止配置退化
+**When to use:**
+- After every code change, to validate a clean build
+- At milestone completion, to run the full acceptance check
+- Before release, as the final validation
+- As a regression safety net against configuration drift
 
-**何时不使用：**
-- 单纯的文档修改（无需构建验证）
-- SDK 安装/环境配置阶段
+**When not to use:**
+- Pure documentation changes (no build validation needed)
+- During SDK install / environment setup
 
-## 前置条件
+## Prerequisites
 
-- nRF Connect SDK (NCS) 已安装并通过 `west` 可用
-- `west init` / `west update` 已完成
-- 项目目录包含 `CMakeLists.txt`, `prj.conf`, `app.overlay`
+- nRF Connect SDK (NCS) installed and available via `west`
+- `west init` / `west update` completed
+- The project directory contains `CMakeLists.txt`, `prj.conf`, `app.overlay`
 
-## 操作步骤
+## Procedure
 
-### 1. 测试金字塔（无硬件版）
+### 1. Test pyramid (hardware-free)
 
 ```
         ┌─────────────┐
-        │ Acceptance   │  ← verify-acceptance.sh: 全量 P0 检查
+        │ Acceptance   │  ← verify-acceptance.sh: full P0 suite
         │ Tests        │
        ┌┴─────────────┴┐
-       │ Static Analysis│  ← DTS/Kconfig/ROM/RAM 验证
+       │ Static Analysis│  ← DTS/Kconfig/ROM/RAM verification
        │ Tests          │
       ┌┴────────────────┴┐
-      │  Build Tests      │  ← west build --sysbuild 编译通过
+      │  Build Tests      │  ← west build --sysbuild must succeed
       └──────────────────┘
 ```
 
-### 2. 构建测试（每次修改后）
+### 2. Build tests (after every change)
 
 ```bash
-# 增量构建（快速验证）
+# Incremental build (fast validation)
 west build
 
-# 完整构建（配置变更后）
+# Full build (after config changes)
 rm -rf build && west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
 
-# CMake-only（仅验证配置）
+# CMake-only (config validation only)
 west build -b nrf5340dk/nrf5340/cpuapp --sysbuild --cmake-only
 ```
 
-### 3. 静态分析测试
+### 3. Static-analysis tests
 
 ```bash
-# DTS 展开验证 — 确认 SPIM4 配置正确
+# DTS expansion check — confirm the SPIM4 configuration is correct
 BUILD_APP_DIR=$(find build -name "zephyr.dts" -path "*/zephyr/*" ! -path "*/ipc_radio/*" | head -1 | xargs dirname)
 cat "$BUILD_APP_DIR/zephyr.dts" | grep -A10 "spi4"
-# 预期: status = "okay", clock-frequency = <32000000>
+# Expect: status = "okay", clock-frequency = <32000000>
 
-# Kconfig 验证 — 确认关键配置已启用
+# Kconfig check — confirm key options are enabled
 grep -E "CONFIG_(SPI|BT|BT_PERIPHERAL|BT_HRS)=" \
   "$BUILD_APP_DIR/.config"
-# 预期: 全部 =y
+# Expect: all =y
 
-# Sysbuild 多镜像验证
+# Sysbuild multi-image check
 ls -la build/ipc_radio/zephyr/zephyr.hex
 ls -la build/merged.hex
-# 预期: 两个文件均存在
+# Expect: both files exist
 
-# ROM/RAM 报告
+# ROM/RAM reports
 west build -t rom_report 2>&1 | tail -20
 west build -t ram_report 2>&1 | tail -20
-# 预期: 无 overflow
+# Expect: no overflow
 
-# 符号检查
+# Symbol check
 west build -t rom_report 2>&1 | grep -E "bt_hrs|spi_nrfx"
-# 预期: 包含 bt_hrs_* 和 spi_nrfx_* 符号
+# Expect: contains bt_hrs_* and spi_nrfx_* symbols
 ```
 
-### 4. 严格编译测试
+### 4. Strict compile test
 
 ```bash
-# 警告作为错误
+# Warnings as errors
 west build -b nrf5340dk/nrf5340/cpuapp --sysbuild \
   -- -DCONFIG_COMPILER_WARNINGS_AS_ERRORS=y
 
-# 清空重建验证（排除缓存假成功）
+# Clean-rebuild validation (rules out cache-driven false greens)
 rm -rf build && west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
 ```
 
-### 5. 一键验收脚本（verify-acceptance.sh）
+### 5. One-shot acceptance script (verify-acceptance.sh)
 
-将以下脚本保存为项目根目录的 `verify-acceptance.sh`：
+Save the following script as `verify-acceptance.sh` at the project root:
 
 ```bash
 #!/bin/bash
-# verify-acceptance.sh — nRF5340 SPI+BLE 项目 P0 验收自动化
+# verify-acceptance.sh — automated P0 acceptance for the nRF5340 SPI+BLE project
 set -euo pipefail
 
 PASS=0; FAIL=0; TOTAL=0
@@ -122,90 +122,90 @@ check() {
 }
 
 echo "============================================"
-echo " nRF5340 SPI+BLE P0 验收测试"
+echo " nRF5340 SPI+BLE P0 acceptance"
 echo "============================================"
 echo ""
 
-# --- 构建测试 ---
-echo "[1/4] 清空重建..."
+# --- Build tests ---
+echo "[1/4] clean rebuild..."
 rm -rf "$BUILD_DIR"
 west build -b "$BOARD" --sysbuild 2>&1 | tail -5
 BUILD_RC=${PIPESTATUS[0]:-$?}
 
 echo ""
-echo "[2/4] 构建结果检查..."
-check "AC-1" "west build --sysbuild 返回 0" test "$BUILD_RC" -eq 0
-check "AC-2" "merged.hex 存在" test -f "$BUILD_DIR/merged.hex"
-check "AC-B1" "CMake 配置成功" test -f "$APP_BUILD/zephyr/.config"
-check "AC-B4" "ipc_radio net core 存在" test -d "$BUILD_DIR/ipc_radio"
+echo "[2/4] build result checks..."
+check "AC-1" "west build --sysbuild returns 0" test "$BUILD_RC" -eq 0
+check "AC-2" "merged.hex exists" test -f "$BUILD_DIR/merged.hex"
+check "AC-B1" "CMake config succeeded" test -f "$APP_BUILD/zephyr/.config"
+check "AC-B4" "ipc_radio net core present" test -d "$BUILD_DIR/ipc_radio"
 
 echo ""
-echo "[3/4] 静态分析..."
+echo "[3/4] static analysis..."
 
-# DTS 检查
-check "AC-B2" "spi4 节点 status=okay" \
+# DTS check
+check "AC-B2" "spi4 node status=okay" \
     grep -q 'status = "okay"' <(grep -A5 "spi4 {" "$APP_BUILD/zephyr/zephyr.dts" 2>/dev/null || true)
 
-# Kconfig 检查
+# Kconfig checks
 for cfg in CONFIG_SPI CONFIG_BT CONFIG_BT_PERIPHERAL CONFIG_BT_HRS; do
     check "AC-B3:$cfg" "$cfg=y" grep -q "^${cfg}=y" "$APP_BUILD/zephyr/.config"
 done
 
 echo ""
-echo "[4/4] 仓库检查..."
-check "AC-5" ".gitignore 排除 build/" grep -q "^build/" .gitignore
-check "AC-4" "README 含 LLM 声明" grep -qi "llm\|language model\|copilot\|chatgpt\|claude" README.md
+echo "[4/4] repo checks..."
+check "AC-5" ".gitignore excludes build/" grep -q "^build/" .gitignore
+check "AC-4" "README contains LLM disclosure" grep -qi "llm\|language model\|copilot\|chatgpt\|claude" README.md
 
 echo ""
 echo "============================================"
-echo " 结果: $PASS/$TOTAL PASS, $FAIL FAIL"
+echo " Result: $PASS/$TOTAL PASS, $FAIL FAIL"
 echo "============================================"
 
 if [ "$FAIL" -gt 0 ]; then
-    echo "❌ 验收未通过 — 请修复上述 FAIL 项"
+    echo "❌ Acceptance failed — please fix the FAIL items above"
     exit 1
 else
-    echo "✅ 所有 P0 验收标准通过！"
+    echo "✅ All P0 acceptance criteria passed!"
     exit 0
 fi
 ```
 
-### 6. 发布后验证（Fresh Clone Test）
+### 6. Post-release verification (Fresh Clone Test)
 
-发布到 GitHub 后，用另一台机器或干净目录验证：
+After publishing to GitHub, verify on another machine or in a clean directory:
 
 ```bash
-# 1. 克隆
+# 1. Clone
 git clone https://github.com/<user>/Nordic_nRF5340_SPI_loopback.git /tmp/nrf-verify
 cd /tmp/nrf-verify
 
-# 2. 检查文件完整性
+# 2. File integrity
 test -f CMakeLists.txt && test -f prj.conf && test -f app.overlay && \
-test -d src && test -f README.md && echo "✅ 文件完整" || echo "❌ 文件缺失"
+test -d src && test -f README.md && echo "✅ files present" || echo "❌ files missing"
 
-# 3. 不应存在的文件
+# 3. Files that should not exist
 test ! -d build && test ! -d .west && test ! -d .venv && \
-echo "✅ 无构建产物" || echo "❌ 构建产物被提交"
+echo "✅ no build artefacts" || echo "❌ build artefacts were committed"
 
-# 4. 构建验证（需 NCS 环境）
+# 4. Build validation (requires the NCS env)
 west build -b nrf5340dk/nrf5340/cpuapp --sysbuild && \
-echo "✅ Fresh clone build 成功" || echo "❌ Fresh clone build 失败"
+echo "✅ fresh clone build succeeded" || echo "❌ fresh clone build failed"
 
-# 5. 运行验收脚本
+# 5. Run the acceptance script
 bash verify-acceptance.sh
 
-# 6. 清理
+# 6. Cleanup
 rm -rf /tmp/nrf-verify
 ```
 
-## Self-Test（自检）
+## Self-Test
 
-> 验证测试框架的核心逻辑（不需要 NCS 环境）。
+> Validate the core logic of the testing framework (no NCS environment required).
 
-### 自检步骤
+### Self-test steps
 
 ```bash
-# Test 1: check() 函数逻辑验证
+# Test 1: check() function logic
 bash -c '
 PASS=0; FAIL=0; TOTAL=0
 check() {
@@ -223,7 +223,7 @@ else
 fi
 '
 
-# Test 2: grep 模式验证
+# Test 2: grep pattern validation
 bash -c '
 echo "CONFIG_SPI=y" > /tmp/test_config
 echo "CONFIG_BT=y" >> /tmp/test_config
@@ -244,7 +244,7 @@ else
 fi
 '
 
-# Test 3: .gitignore 检查逻辑
+# Test 3: .gitignore check logic
 bash -c '
 echo -e "build/\n.west/\n.venv/" > /tmp/test_gitignore
 grep -q "^build/" /tmp/test_gitignore && \
@@ -254,27 +254,26 @@ rm /tmp/test_gitignore
 '
 ```
 
-### Blind Test（盲测）
+### Blind Test
 
-**测试 Prompt:**
+**Test prompt:**
 ```
-你是一个 AI 开发助手。请阅读此 Skill，然后：
-1. 编写一个简化版的 verify-acceptance.sh，只检查 3 项：build 成功、merged.hex 存在、.gitignore 正确
-2. 使脚本输出 PASS/FAIL 汇总并返回正确的 exit code
-3. 解释为什么"清空重建"比"增量构建"更可靠
-4. 描述 fresh clone test 的目的
+You are an AI development assistant. Read this skill, then:
+1. Write a simplified verify-acceptance.sh that only checks 3 things: build succeeded, merged.hex exists, .gitignore is correct
+2. Make the script print a PASS/FAIL summary and return the correct exit code
+3. Explain why a "clean rebuild" is more reliable than an "incremental build"
+4. Describe the purpose of the fresh clone test
 ```
 
-**验收标准:**
-- [ ] Agent 使用了 check() 函数结构
-- [ ] 脚本在 FAIL 时 exit 1
-- [ ] Agent 解释了 DTS/Kconfig 缓存导致假成功的问题
-- [ ] Agent 理解 fresh clone test 验证 .gitignore 和仓库完整性
+**Acceptance criteria:**
+- [ ] The agent uses a `check()` function structure
+- [ ] The script exits 1 on FAIL
+- [ ] The agent explains the false-green problem caused by DTS/Kconfig caching
+- [ ] The agent understands that a fresh clone test validates `.gitignore` and repo integrity
 
-## 成功标准
+## Success Criteria
 
-- [ ] `west build --sysbuild` 每次修改后通过
-- [ ] 所有 P0 验收标准通过（verify-acceptance.sh exit 0）
-- [ ] 清空重建仍然成功
-- [ ] 发布后 fresh clone build 成功
-- [ ] 测试结果有清晰的 PASS/FAIL 输出
+- [ ] `west build --sysbuild` passes after every change
+- [ ] All P0 acceptance criteria pass (`verify-acceptance.sh` exits 0)
+- [ ] A clean rebuild still succeeds
+- [ ] Post-release fresh clone build succeeds

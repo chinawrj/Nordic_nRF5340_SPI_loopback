@@ -1,92 +1,92 @@
-# 需求文档 / Requirements Specification
+# Requirements Specification
 
-**项目**: Nordic nRF5340 DK — SPI Loopback + BLE Heart Rate
-**性质**: 面试技术任务（决定 Offer）
-**交付物**: 可 clean build 的 GitHub 仓库 + README（含 LLM 使用说明）
-**日期**: 2026-04-20
-
----
-
-## 1. 原始需求（逐句对齐）
-
-邮件原文要点拆解：
-
-| # | 原文 | 理解 / 确认点 |
-|---|------|--------------|
-| R1 | "Load the latest Nordic SDK and toolchain onto your PC" | 使用**最新**的 nRF Connect SDK (NCS)。当前最新稳定版需确认（截至 2026-04 预计 v2.9.x 或 v3.x）。用 nRF Connect for VS Code 扩展安装 toolchain manager。 |
-| R2 | "using this IDE in VS code set up a project for the nRF5340 DK" | 在 **VS Code** 中，使用 **nRF Connect for VS Code** 扩展创建项目。目标板：`nrf5340dk/nrf5340/cpuapp`。 |
-| R3 | "set up a SPI loopback test for the 32 MHz capable SPI interface" | **32 MHz SPI** = 必须使用 **SPIM4**（nRF5340 上唯一支持 32 MHz 的 SPI 实例，其他 SPIM0–3 上限 8 MHz）。Loopback 测试：MOSI 短接 MISO，发送 buffer，校验接收 buffer 一致。 |
-| R4 | "a BLE stack for communicating heart rate data over BLE from the device" | Peripheral 角色，GATT **Heart Rate Service (HRS, UUID 0x180D)**，含 Heart Rate Measurement characteristic (0x2A37) notify。可周期性推送模拟心率数据。 |
-| R5 | "provide us with that project from a GitHub repository that you can invite us to" | GitHub 仓库，需提供可邀请协作者的访问方式（public 或 private + invite）。 |
-| R6 | "only need to create the project to a clean build level, no need to run on the hardware" | **验收标准 = clean build 通过**（`west build` 无错误，产出 merged.hex）。不强制硬件验证。 |
-| R7 | "Tell us what LLMs (including version numbers) you used in the task and how" | README 中必须列出使用的 LLM 型号/版本及用途。**诚实声明**是考察点之一（工程诚信）。 |
-
-**潜在隐含考察点（未明说但重要）**：
-- 对 nRF5340 **双核架构**的理解（app core + network core）
-- 对 **sysbuild** / 多镜像构建的掌握
-- 对 **devicetree overlay** 的使用（pinctrl + SPIM4 配置）
-- Git/GitHub 工程规范（.gitignore、commit 粒度、README 质量）
-- 代码组织（不是把所有东西堆在 main.c）
+**Project**: Nordic nRF5340 DK — SPI Loopback + BLE Heart Rate
+**Nature**: Interview technical task (offer-determining)
+**Deliverable**: GitHub repository with a clean build + README (including LLM usage disclosure)
+**Date**: 2026-04-20
 
 ---
 
-## 2. 功能需求 (FR)
+## 1. Original Requirements (Sentence-by-Sentence Mapping)
+
+Key points extracted from the original email:
+
+| # | Original | Interpretation / Confirmation |
+|---|----------|------------------------------|
+| R1 | "Load the latest Nordic SDK and toolchain onto your PC" | Use the **latest** nRF Connect SDK (NCS). The current stable version needs to be confirmed (as of 2026-04, expected to be v2.9.x or v3.x). Install the toolchain via the nRF Connect for VS Code extension's toolchain manager. |
+| R2 | "using this IDE in VS code set up a project for the nRF5340 DK" | In **VS Code**, use the **nRF Connect for VS Code** extension to create the project. Target board: `nrf5340dk/nrf5340/cpuapp`. |
+| R3 | "set up a SPI loopback test for the 32 MHz capable SPI interface" | **32 MHz SPI** = must use **SPIM4** (the only SPI instance on the nRF5340 that supports 32 MHz; SPIM0–3 top out at 8 MHz). Loopback test: short MOSI to MISO, send a buffer, verify the received buffer matches. |
+| R4 | "a BLE stack for communicating heart rate data over BLE from the device" | Peripheral role, GATT **Heart Rate Service (HRS, UUID 0x180D)** including the Heart Rate Measurement characteristic (0x2A37) notify. Periodically push simulated heart-rate data. |
+| R5 | "provide us with that project from a GitHub repository that you can invite us to" | GitHub repository, providing an invite-capable access path (public, or private + invite). |
+| R6 | "only need to create the project to a clean build level, no need to run on the hardware" | **Acceptance criterion = clean build passes** (`west build` with no errors, produces `merged.hex`). Hardware verification is not mandatory. |
+| R7 | "Tell us what LLMs (including version numbers) you used in the task and how" | The README must list the LLM models/versions used and their purpose. **Honest disclosure** is itself one of the evaluation points (engineering integrity). |
+
+**Potential implicit evaluation points (not stated but important)**:
+- Understanding of the nRF5340 **dual-core architecture** (app core + network core)
+- Mastery of **sysbuild** / multi-image builds
+- Use of **devicetree overlays** (pinctrl + SPIM4 configuration)
+- Git/GitHub engineering practices (.gitignore, commit granularity, README quality)
+- Code organisation (not piling everything into `main.c`)
+
+---
+
+## 2. Functional Requirements (FR)
 
 ### FR-1: SPI Loopback
-- **FR-1.1** 使用 SPIM4 实例，配置 clock-frequency = 32 MHz
-- **FR-1.2** 使用 Zephyr SPI API (`<zephyr/drivers/spi.h>`, `spi_transceive`)
-- **FR-1.3** 通过 DTS overlay 启用 SPIM4 并分配 pinctrl（SCK/MOSI/MISO）
-- **FR-1.4** 周期性发送测试 pattern（如 32 字节递增序列），接收后逐字节比对
-- **FR-1.5** 结果通过 `LOG_INF` / `LOG_ERR` 打印到 RTT / UART
-- **FR-1.6** 运行在独立线程或 work queue，不阻塞 BLE
+- **FR-1.1** Use the SPIM4 instance, configured with clock-frequency = 32 MHz
+- **FR-1.2** Use the Zephyr SPI API (`<zephyr/drivers/spi.h>`, `spi_transceive`)
+- **FR-1.3** Enable SPIM4 via DTS overlay and allocate pinctrl (SCK/MOSI/MISO)
+- **FR-1.4** Periodically send a test pattern (e.g. a 32-byte increasing sequence) and compare received bytes one by one
+- **FR-1.5** Report results through `LOG_INF` / `LOG_ERR` to RTT / UART
+- **FR-1.6** Run in a dedicated thread or work queue so it does not block BLE
 
 ### FR-2: BLE Heart Rate Peripheral
-- **FR-2.1** 启用 BLE 协议栈（app core: host；net core: controller via `ipc_radio` / `hci_ipc`）
-- **FR-2.2** 设备名 `nRF5340_HR`（可配置）
-- **FR-2.3** 广播包含 HRS service UUID (0x180D)
-- **FR-2.4** 支持一个 Central 连接（Peripheral role）
-- **FR-2.5** 连接后，周期性（1 Hz）通过 `bt_hrs_notify()` 发送模拟心率（如在 60–100 bpm 间变化）
-- **FR-2.6** 断开连接后自动恢复广播
+- **FR-2.1** Enable the BLE stack (app core: host; net core: controller via `ipc_radio` / `hci_ipc`)
+- **FR-2.2** Device name `nRF5340_HR` (configurable)
+- **FR-2.3** Advertise with the HRS service UUID (0x180D)
+- **FR-2.4** Support one Central connection (Peripheral role)
+- **FR-2.5** After connection, periodically (1 Hz) send simulated heart rate via `bt_hrs_notify()` (e.g. varying between 60–100 bpm)
+- **FR-2.6** Automatically resume advertising after disconnection
 
-### FR-3: 构建与交付
-- **FR-3.1** 项目在 VS Code + nRF Connect 扩展中可直接打开构建
-- **FR-3.2** `west build -b nrf5340dk/nrf5340/cpuapp --sysbuild` 成功无错误
-- **FR-3.3** 产出 `build/merged.hex`（app + net core 合并）
-- **FR-3.4** GitHub 仓库公开或提供邀请链接
-- **FR-3.5** README 说明构建步骤、硬件接线、LLM 使用声明
-
----
-
-## 3. 非功能需求 (NFR)
-
-| ID | 项 | 要求 |
-|----|---|------|
-| NFR-1 | 代码质量 | 模块化（spi / ble / main 分离），无编译 warning |
-| NFR-2 | 可读性 | 关键函数有注释；README 条理清晰 |
-| NFR-3 | 可复现 | 固定 NCS 版本（west manifest 或 README 中声明）|
-| NFR-4 | 仓库规范 | `.gitignore` 排除 `build/`、`.west/`、IDE 临时文件 |
-| NFR-5 | 诚信 | LLM 使用如实声明 |
+### FR-3: Build and Delivery
+- **FR-3.1** The project opens and builds directly in VS Code + nRF Connect extension
+- **FR-3.2** `west build -b nrf5340dk/nrf5340/cpuapp --sysbuild` succeeds with no errors
+- **FR-3.3** Produces `build/merged.hex` (combined app + net core image)
+- **FR-3.4** GitHub repository public or invite link provided
+- **FR-3.5** README documents build steps, hardware wiring, and LLM usage disclosure
 
 ---
 
-## 4. 约束与假设
+## 3. Non-Functional Requirements (NFR)
 
-### 约束
-- **C-1** 只需 clean build，无需实机运行（无需 DK 硬件也能交付）
-- **C-2** 使用 NCS 官方最新稳定版（避免用 main 分支不稳定版本）
-- **C-3** 所有 Nordic 专有代码遵循其 license（不 fork NCS 进仓库，只引用）
-
-### 假设
-- **A-1** 本机已装（或可装）nRF Connect for VS Code + Toolchain Manager
-- **A-2** 目标板 variant：`nrf5340dk/nrf5340/cpuapp`（当前 NCS 板名约定）
-- **A-3** 使用 sysbuild（NCS v2.7+ 默认）自动管理 net core 镜像
-- **A-4** Net core 使用 NCS 提供的 `ipc_radio` sample 镜像作为 BLE controller
+| ID | Item | Requirement |
+|----|------|-------------|
+| NFR-1 | Code quality | Modular (spi / ble / main separated), no compile warnings |
+| NFR-2 | Readability | Key functions documented; README clearly structured |
+| NFR-3 | Reproducibility | Pin the NCS version (west manifest or declared in README) |
+| NFR-4 | Repo hygiene | `.gitignore` excludes `build/`, `.west/`, IDE temp files |
+| NFR-5 | Integrity | LLM usage disclosed truthfully |
 
 ---
 
-## 5. 技术路线 / Architecture
+## 4. Constraints and Assumptions
 
-### 5.1 硬件架构
+### Constraints
+- **C-1** Only a clean build is required; running on real hardware is not needed (deliverable stands without the DK)
+- **C-2** Use the latest official stable NCS release (avoid the unstable `main` branch)
+- **C-3** All Nordic proprietary code must follow its licence (do not fork NCS into the repo; only reference it)
+
+### Assumptions
+- **A-1** The local machine has (or can install) nRF Connect for VS Code + Toolchain Manager
+- **A-2** Target board variant: `nrf5340dk/nrf5340/cpuapp` (the current NCS board naming convention)
+- **A-3** Use sysbuild (default from NCS v2.7+) to automatically manage the net-core image
+- **A-4** The net core uses NCS's `ipc_radio` sample image as the BLE controller
+
+---
+
+## 5. Technical Approach / Architecture
+
+### 5.1 Hardware Architecture
 ```
  ┌────────────────────── nRF5340 SoC ──────────────────────┐
  │                                                         │
@@ -105,17 +105,17 @@
  └─────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 软件栈
-- **应用层**: `main.c` 初始化 → 启动 SPI 线程 + BLE 广播
-- **SPI 模块**: `spi_loopback.c` — 独立线程，周期测试
-- **BLE 模块**: `ble_hrs.c` — 初始化栈、注册 HRS 回调、周期 notify
-- **Zephyr 子系统**: kernel threads、log、BT host (NCS)、SPI driver (nrfx)
+### 5.2 Software Stack
+- **Application layer**: `main.c` initialises, then starts the SPI thread + BLE advertising
+- **SPI module**: `spi_loopback.c` — independent thread, periodic test
+- **BLE module**: `ble_hrs.c` — stack init, HRS callbacks registration, periodic notify
+- **Zephyr subsystems**: kernel threads, log, BT host (NCS), SPI driver (nrfx)
 
-### 5.3 Devicetree Overlay 策略
+### 5.3 Devicetree Overlay Strategy
 ```
 app.overlay:
   &pinctrl {
-    spi4_default: spi4_default { ... SCK/MOSI/MISO 引脚 + HIGH drive ... };
+    spi4_default: spi4_default { ... SCK/MOSI/MISO pins + HIGH drive ... };
     spi4_sleep:   spi4_sleep   { ... };
   };
   &spi4 {
@@ -127,7 +127,7 @@ app.overlay:
   };
 ```
 
-### 5.4 Kconfig 策略（`prj.conf`）
+### 5.4 Kconfig Strategy (`prj.conf`)
 ```
 # Logging
 CONFIG_LOG=y
@@ -154,7 +154,7 @@ SB_CONFIG_NETCORE_IPC_RADIO=y
 SB_CONFIG_NETCORE_IPC_RADIO_BT_HCI_IPC=y
 ```
 
-### 5.5 项目目录
+### 5.5 Project Directory
 ```
 Nordic_nRF5340_SPI_loopback/
 ├── CMakeLists.txt
@@ -168,107 +168,107 @@ Nordic_nRF5340_SPI_loopback/
 │   ├── ble_hrs.c
 │   └── ble_hrs.h
 ├── .gitignore
-├── REQUIREMENTS.md   (本文件)
-└── README.md         (交付说明 + LLM 声明)
+├── REQUIREMENTS.md   (this file)
+└── README.md         (delivery notes + LLM disclosure)
 ```
 
 ---
 
-## 6. 验收标准 (Acceptance Criteria)
+## 6. Acceptance Criteria
 
-### 6.0 交付件状态总表（Delivery Status Snapshot）
+### 6.0 Delivery Status Snapshot
 
-> 每日 wrap-up 时刷新这张表。**面试官邀请门禁**（见 §6.3.2 + `.github/agents/dev-workflow.agent.md`）要求 §6.1 + AC-V1 + AC-V2 全绿才放行。
+> Refresh this table at every daily wrap-up. The **interviewer invitation gate** (see §6.3.2 + `.github/agents/dev-workflow.agent.md`) requires §6.1 + AC-V1 + AC-V2 all green before release.
 
-| ID | 范畴 | 标题 | 优先级 | 状态 | 证据 / 命令 |
-|----|------|------|-------|------|-------------|
-| AC-1  | §6.1 | `west build --sysbuild` 退出 0 | P0 | ✅ | `verify-acceptance.sh`, CI run `24658312584` |
-| AC-2  | §6.1 | `merged.hex` 覆盖 app+net core | P0 | ✅ | harness AC-B4.d |
-| AC-3  | §6.1 | GitHub 仓库 + 可邀请 | P0 | ✅ (repo live, invite gated by §6.3.2) | `chinawrj/Nordic_nRF5340_SPI_loopback` |
-| AC-4  | §6.1 | README LLM 声明 | P0 | ✅ | harness AC-4 |
-| AC-5  | §6.1 | `.gitignore` 排除 build/west/venv | P0 | ✅ | harness AC-5.a–c |
-| AC-B1 | §6.2 | `--cmake-only` 成功 | P0 | ✅ | harness 隐含（AC-1 subset） |
+| ID | Scope | Title | Priority | Status | Evidence / Command |
+|----|-------|-------|----------|--------|--------------------|
+| AC-1  | §6.1 | `west build --sysbuild` exits 0 | P0 | ✅ | `verify-acceptance.sh`, CI run `24658312584` |
+| AC-2  | §6.1 | `merged.hex` covers app+net core | P0 | ✅ | harness AC-B4.d |
+| AC-3  | §6.1 | GitHub repo + invitable | P0 | ✅ (repo live, invite gated by §6.3.2) | `chinawrj/Nordic_nRF5340_SPI_loopback` |
+| AC-4  | §6.1 | README LLM disclosure | P0 | ✅ | harness AC-4 |
+| AC-5  | §6.1 | `.gitignore` excludes build/west/venv | P0 | ✅ | harness AC-5.a–c |
+| AC-B1 | §6.2 | `--cmake-only` succeeds | P0 | ✅ | harness implicit (AC-1 subset) |
 | AC-B2 | §6.2 | DTS spi4 okay/32MHz/pinctrl | P0 | ✅ | harness AC-B2.a–c |
 | AC-B3 | §6.2 | Kconfig SPI+BT+HRS+DIS+HCI_IPC | P0 | ✅ | harness AC-B3:* |
 | AC-B4 | §6.2 | Sysbuild multi-image (app+net) | P0 | ✅ | harness AC-B4.a–e |
-| AC-B5 | §6.2 | `rom_report` 含 bt_hrs_* / spi_nrfx_* | P1 | ✅ | `docs/reports/rom-report-cpuapp.txt` |
-| AC-B6 | §6.2 | `ram_report` 无 overflow | P1 | ✅ | `docs/reports/ram-report-cpuapp.txt` |
-| AC-B7 | §6.2 | 清空 build 重建仍绿 | P1 | ✅ | harness 每次 `rm -rf build` |
+| AC-B5 | §6.2 | `rom_report` contains bt_hrs_* / spi_nrfx_* | P1 | ✅ | `docs/reports/rom-report-cpuapp.txt` |
+| AC-B6 | §6.2 | `ram_report` no overflow | P1 | ✅ | `docs/reports/ram-report-cpuapp.txt` |
+| AC-B7 | §6.2 | Rebuild from empty build dir still green | P1 | ✅ | harness `rm -rf build` every run |
 | AC-B8 | §6.2 | `-DCONFIG_COMPILER_WARNINGS_AS_ERRORS=y` | P1 | ✅ | CI workflow step |
-| AC-Q1 | §6.4 | 零编译器 warning | P1 | ✅ | AC-B8 即保证 |
-| AC-Q2 | §6.4 | 代码风格一致 | P1 | ✅ | 手审 |
-| AC-Q3 | §6.4 | Git history 干净 | P1 | ✅ | 语义 commit 到 Day 9 |
-| AC-R2 | §6.3 | `nrf5340bsim/nrf5340/cpuapp` 编译 | P2 | ✅ | harness "P2: nrf5340bsim compile" |
-| **AC-V1** | §6.3.2 | **bsim run: HRS peripheral↔central, notify 可见** | **P2 (gate)** | ✅ Day 10 (nrf52_bsim pivot) | `reports/bsim-hrs-central.log` (9 notifications) |
-| **AC-V2** | §6.3.2 | **native_sim + Chrome Web Bluetooth 端到端收到 HR** | **P2 (gate)** | ✅ Day 11 (hci1 Broadcom USB + Patchright Chromium) | `reports/ble-hr-connected.png` + `reports/ble-hr-log.txt` (3 notifications, 62-64 bpm) |
-| AC-R1 | §6.3 | native_sim 冒烟（可选） | P2 | N/A | AC-V2 覆盖了 native_sim 构建 |
-| AC-R3 | §6.3 | bsim 端到端 BLE HRS（AC-V1 超集） | P2 | ⏳ 被 AC-V1 取代 | — |
-| AC-R4 | §6.3 | Twister 自动化 | P2 | ✅ | `sample.yaml` 已加 |
+| AC-Q1 | §6.4 | Zero compiler warnings | P1 | ✅ | guaranteed by AC-B8 |
+| AC-Q2 | §6.4 | Consistent code style | P1 | ✅ | manual review |
+| AC-Q3 | §6.4 | Clean git history | P1 | ✅ | semantic commits through Day 9 |
+| AC-R2 | §6.3 | `nrf5340bsim/nrf5340/cpuapp` compiles | P2 | ✅ | harness "P2: nrf5340bsim compile" |
+| **AC-V1** | §6.3.2 | **bsim run: HRS peripheral↔central, notify visible** | **P2 (gate)** | ✅ Day 10 (nrf52_bsim pivot) | `reports/bsim-hrs-central.log` (9 notifications) |
+| **AC-V2** | §6.3.2 | **native_sim + Chrome Web Bluetooth end-to-end HR received** | **P2 (gate)** | ✅ Day 11 (hci1 Broadcom USB + Patchright Chromium) | `reports/ble-hr-connected.png` + `reports/ble-hr-log.txt` (3 notifications, 62-64 bpm) |
+| AC-R1 | §6.3 | native_sim smoke (optional) | P2 | N/A | covered by AC-V2's native_sim build |
+| AC-R3 | §6.3 | bsim end-to-end BLE HRS (superset of AC-V1) | P2 | ⏳ Superseded by AC-V1 | — |
+| AC-R4 | §6.3 | Twister automation | P2 | ✅ | `sample.yaml` added |
 
-图例：✅ 已达成 / ⏳ 规划中 / ⛔ 阻塞 / N/A 不适用。
+Legend: ✅ achieved / ⏳ planned / ⛔ blocked / N/A not applicable.
 
-### 6.1 基础验收（邮件明确要求）
-- [ ] AC-1: `west build -b nrf5340dk/nrf5340/cpuapp --sysbuild` 返回 0，无 error、无关键 warning
-- [ ] AC-2: build 输出包含 `merged.hex`（app + net core 合并镜像）
-- [ ] AC-3: GitHub 仓库可访问并能邀请协作者
-- [ ] AC-4: README 中包含完整 LLM 使用声明（邮件明确要求）
-- [ ] AC-5: `.gitignore` 正确排除 build 产物
+### 6.1 Baseline Acceptance (Explicitly Required by the Email)
+- [ ] AC-1: `west build -b nrf5340dk/nrf5340/cpuapp --sysbuild` returns 0, with no errors or critical warnings
+- [ ] AC-2: the build output contains `merged.hex` (combined app + net core image)
+- [ ] AC-3: GitHub repo is accessible and supports collaborator invitation
+- [ ] AC-4: README contains a complete LLM usage disclosure (explicitly required by the email)
+- [ ] AC-5: `.gitignore` correctly excludes build artefacts
 
-### 6.2 无硬件自测：构建期（Static / Build-time）验证
+### 6.2 Hardware-free Self Test: Build-time (Static) Verification
 
-> 目标：在只有电脑、没有 nRF5340 DK 的条件下，尽可能深度验证交付物的正确性。以下所有检查均可在 NCS workspace 内完成。
+> Goal: with only a computer and no nRF5340 DK, verify the deliverable as deeply as possible. All checks below can be completed inside the NCS workspace.
 
-- [ ] **AC-B1 (Cmake 配置校验)**：`west build -b nrf5340dk/nrf5340/cpuapp --sysbuild --cmake-only` 成功，无 CMake error
-- [ ] **AC-B2 (Devicetree 展开校验)**：检查 `build/nRF5340_SPI_loopback/zephyr/zephyr.dts`，确认：
-  - `spi4` 节点 `status = "okay"`
-  - `spi4` 节点 `clock-frequency = <0x01e84800>`（= 32,000,000，十六进制）
-  - `pinctrl-0` 正确引用自定义 `spi4_default` 节点
-- [ ] **AC-B3 (Kconfig 生效校验)**：检查 `build/nRF5340_SPI_loopback/zephyr/.config`，确认：
-  - `CONFIG_SPI=y`、`CONFIG_SPI_NRFX=y`
-  - `CONFIG_BT=y`、`CONFIG_BT_PERIPHERAL=y`、`CONFIG_BT_HRS=y`
+- [ ] **AC-B1 (CMake configuration check)**: `west build -b nrf5340dk/nrf5340/cpuapp --sysbuild --cmake-only` succeeds with no CMake errors
+- [ ] **AC-B2 (Devicetree expansion check)**: inspect `build/nRF5340_SPI_loopback/zephyr/zephyr.dts` and confirm:
+  - `spi4` node has `status = "okay"`
+  - `spi4` node has `clock-frequency = <0x01e84800>` (= 32,000,000 in hex)
+  - `pinctrl-0` correctly references the custom `spi4_default` node
+- [ ] **AC-B3 (Kconfig effectiveness check)**: inspect `build/nRF5340_SPI_loopback/zephyr/.config` and confirm:
+  - `CONFIG_SPI=y`, `CONFIG_SPI_NRFX=y`
+  - `CONFIG_BT=y`, `CONFIG_BT_PERIPHERAL=y`, `CONFIG_BT_HRS=y`
   - `CONFIG_BT_DEVICE_NAME="nRF5340_HR"`
-- [ ] **AC-B4 (Sysbuild 多镜像校验)**：`build/` 目录下同时存在
-  - `nRF5340_SPI_loopback/` (app core 子构建)
-  - `ipc_radio/` (net core 子构建 — BLE controller 镜像)
-  - 根 `merged.hex` 大小 > app 单独 hex（证明包含 net core）
-- [ ] **AC-B5 (符号 / Section 检查)**：`west build -t rom_report` 成功生成 ROM 报告，包含 `bt_hrs_*` 与 `spi_nrfx_*` 相关符号
-- [ ] **AC-B6 (内存足迹)**：`west build -t ram_report` 无 overflow；Flash/RAM 使用量在 nRF5340 可用范围内（app core: 1MB flash / 512KB RAM；net core: 256KB flash / 64KB RAM）
-- [ ] **AC-B7 (跨板编译烟测)**：清空 build 目录重建，仍然 clean build（排除 stale cache 假成功）
-- [ ] **AC-B8 (Zero Warnings 选项)**：可选用 `-DCONFIG_COMPILER_WARNINGS_AS_ERRORS=y` 再跑一次 —— 有 warning 直接 fail
+- [ ] **AC-B4 (Sysbuild multi-image check)**: under `build/` both the following exist
+  - `nRF5340_SPI_loopback/` (app core subbuild)
+  - `ipc_radio/` (net core subbuild — BLE controller image)
+  - root `merged.hex` is larger than the app-only hex (proves it contains the net core)
+- [ ] **AC-B5 (Symbols / section check)**: `west build -t rom_report` generates a ROM report containing `bt_hrs_*` and `spi_nrfx_*` related symbols
+- [ ] **AC-B6 (Memory footprint)**: `west build -t ram_report` has no overflow; flash/RAM usage is within the nRF5340 budget (app core: 1MB flash / 512KB RAM; net core: 256KB flash / 64KB RAM)
+- [ ] **AC-B7 (Cross-board compile smoke)**: rebuild from an empty `build/` and it still produces a clean build (rules out stale-cache false greens)
+- [ ] **AC-B8 (Zero-warnings option)**: optionally re-run with `-DCONFIG_COMPILER_WARNINGS_AS_ERRORS=y` — any warning fails the build
 
-### 6.3 无硬件自测：运行期（Runtime）仿真验证（加分项）
+### 6.3 Hardware-free Self Test: Runtime Simulation Verification (Bonus)
 
-> nRF5340 在 Zephyr 中有**专用的仿真板** `nrf5340bsim/nrf5340/cpuapp` 与 `nrf5340bsim/nrf5340/cpunet`，基于 POSIX 架构编译成 Linux 可执行文件，配合 **BabbleSim**（物理层无线信道仿真器）可在纯 Linux 主机上端到端跑 BLE 协议栈。这是官方认可的"无硬件验证 BLE"手段。
+> In Zephyr the nRF5340 has a **dedicated simulation board** `nrf5340bsim/nrf5340/cpuapp` and `nrf5340bsim/nrf5340/cpunet`, which build to Linux executables on the POSIX architecture and, combined with **BabbleSim** (a physical-layer radio channel simulator), allow running the full BLE stack end to end on a plain Linux host. This is the officially recognised way to verify BLE without hardware.
 
-- [ ] **AC-R1 (native_sim 冒烟，可选)**：对纯应用逻辑部分（不依赖 nrfx 硬件寄存器的逻辑）尝试 `west build -b native_sim` — 如果 SPI / BLE 依赖过重则跳过此项
-- [ ] **AC-R2 (bsim 板编译)**：`west build -b nrf5340bsim/nrf5340/cpuapp` 能成功编译出 `zephyr.exe`（Linux ELF）
-- [ ] **AC-R3 (BabbleSim 运行 BLE HRS — 最高置信度)**：在安装了 BabbleSim 的环境下，启动仿真，同时跑：
-  1. 本项目 `zephyr.exe`（DUT，扮演 HRS Peripheral）
-  2. BabbleSim 的 `bs_device_handbrake` + phy simulator
-  3. 一个简单的 BLE Central 测试脚本（或 Zephyr `central_hr` sample 也编成 bsim）
-  
-  验证：Central 能扫描到设备名 `nRF5340_HR`，连接后能收到 HRS notification（心率值）。
-- [ ] **AC-R4 (Twister 自动化)**：增加 `sample.yaml`，用 `twister -p nrf5340dk/nrf5340/cpuapp --build-only` 自动化 build 回归；若加 bsim 则 `--platform nrf5340bsim/nrf5340/cpuapp` 跑运行回归
+- [ ] **AC-R1 (native_sim smoke, optional)**: attempt `west build -b native_sim` for the pure application logic (parts not tied to nrfx hardware registers); skip this item if SPI / BLE dependencies are too heavy
+- [ ] **AC-R2 (bsim board compile)**: `west build -b nrf5340bsim/nrf5340/cpuapp` successfully produces `zephyr.exe` (a Linux ELF)
+- [ ] **AC-R3 (BabbleSim running BLE HRS — highest confidence)**: with BabbleSim installed, launch a simulation and run concurrently:
+  1. this project's `zephyr.exe` (DUT acting as HRS Peripheral)
+  2. BabbleSim's `bs_device_handbrake` + phy simulator
+  3. a simple BLE Central test script (or Zephyr's `central_hr` sample built for bsim)
 
-### 6.3.2 硬件缺席下的运行期 BLE 验证（Day 9 新增，邀请门禁）
+  Verify: the Central scans and finds the device name `nRF5340_HR`, connects, and receives HRS notifications (heart rate values).
+- [ ] **AC-R4 (Twister automation)**: add `sample.yaml` and use `twister -p nrf5340dk/nrf5340/cpuapp --build-only` to automate build regression; if bsim is added, use `--platform nrf5340bsim/nrf5340/cpuapp` for runtime regression
 
-> 背景：clean build + AC-R2 compile-only 证明了配置与编译正确，但没有证明 **BLE HRS 应用代码在运行期行为正确**。对无硬件的面试官，他要么自己 flash 到 DK、要么只能看日志截图。为了在不依赖面试官自备硬件的前提下给出可复现的运行期证据，加以下两条 **P2 运行期 AC**。二者覆盖两种不同的 phy：纯虚拟（bsim）与真实 host adapter（HCI user-channel）。
+### 6.3.2 Runtime BLE Verification Without Hardware (added Day 9, invitation gate)
+
+> Background: a clean build + AC-R2 compile-only prove that the configuration and compilation are correct, but do not prove that **the BLE HRS application code is correct at runtime**. An interviewer without hardware must either flash the DK themselves or only look at log screenshots. To provide reproducible runtime evidence without relying on the interviewer's own hardware, the following two **P2 runtime ACs** are added. They cover two different phys: purely virtual (bsim) and a real host adapter (HCI user-channel).
 >
-> **邀请门禁**：`AC-V1` 与 `AC-V2` 双绿后，才允许发面试官 invitation（规则写在 `.github/agents/dev-workflow.agent.md`）。这是 Day 9 用户明示的新约束。
+> **Invitation gate**: only once both `AC-V1` and `AC-V2` are green may the interviewer invitation be sent (rule captured in `.github/agents/dev-workflow.agent.md`). This is the new constraint the user made explicit on Day 9.
 
-#### AC-V1 — bsim 端到端 HRS（纯虚拟 phy）
+#### AC-V1 — bsim end-to-end HRS (pure virtual phy)
 
-**前置**：BabbleSim 已装，`BSIM_OUT_PATH` / `BSIM_COMPONENTS_PATH` 已导出（Day 7 已满足）。
+**Prerequisite**: BabbleSim installed; `BSIM_OUT_PATH` / `BSIM_COMPONENTS_PATH` exported (met on Day 7).
 
-- [x] **AC-V1.a** 把本项目（HRS peripheral）编译成 bsim ELF — **board pivot 至 `nrf52_bsim`**（nRF5340bsim 在 NCS v2.9.0 的 BLE IPC 运行时报 `Endpoint binding failed -11`；nrf52_bsim 单核稳定）。构建命令见 `scripts/bsim-hrs/build.sh`
-- [x] **AC-V1.b** Central 侧采用 Zephyr `tests/bsim/bluetooth/samples/central_hr_peripheral_hr` (testid `central_hr_peripheral_hr`)，同样编成 `nrf52_bsim`，同样使用 `scripts/bsim-hrs/swll.overlay` + `swll.conf`（禁用 SoftDevice Controller，启用 `zephyr,bt-hci-ll-sw-split`）
-- [x] **AC-V1.c** `scripts/bsim-hrs/run.sh` 启动 `bs_2G4_phy_v1 -D=2 -sim_length=15e6`，DUT 以 `-d=0`、central 以 `-d=1 -testid=central_hr_peripheral_hr` 加入
-- [x] **AC-V1.d** `reports/bsim-hrs-central.log` 实际 grep 到 9 条 `[NOTIFICATION] data 0x... length 2` + `INFO: 9 packets received, expected >= 5` + `INFO: PASSED`（central_hr_peripheral_hr 的输出格式；length 2 = HRS flags + 8-bit BPM 值）
-- [x] **AC-V1.e** 日志存档：`reports/bsim-hrs-central.log`、`reports/bsim-hrs-peripheral.log`（DUT 显示 `advertising as "nRF5340_HR"` + `connected` + `HRS notifications enabled`）、`reports/bsim-hrs-phy.log`
+- [x] **AC-V1.a** Compile this project (HRS peripheral) into a bsim ELF — **board pivoted to `nrf52_bsim`** (nRF5340bsim on NCS v2.9.0 reports `Endpoint binding failed -11` at BLE IPC runtime; nrf52_bsim is single-core and stable). Build command: see `scripts/bsim-hrs/build.sh`
+- [x] **AC-V1.b** Central side uses Zephyr's `tests/bsim/bluetooth/samples/central_hr_peripheral_hr` (testid `central_hr_peripheral_hr`), also built for `nrf52_bsim`, using the same `scripts/bsim-hrs/swll.overlay` + `swll.conf` (SoftDevice Controller disabled, `zephyr,bt-hci-ll-sw-split` enabled)
+- [x] **AC-V1.c** `scripts/bsim-hrs/run.sh` launches `bs_2G4_phy_v1 -D=2 -sim_length=15e6`; DUT joins with `-d=0` and central joins with `-d=1 -testid=central_hr_peripheral_hr`
+- [x] **AC-V1.d** `reports/bsim-hrs-central.log` actually grep-matches 9 entries of `[NOTIFICATION] data 0x... length 2` + `INFO: 9 packets received, expected >= 5` + `INFO: PASSED` (`central_hr_peripheral_hr`'s output format; length 2 = HRS flags + 8-bit BPM value)
+- [x] **AC-V1.e** Log archive: `reports/bsim-hrs-central.log`, `reports/bsim-hrs-peripheral.log` (DUT shows `advertising as "nRF5340_HR"` + `connected` + `HRS notifications enabled`), `reports/bsim-hrs-phy.log`
 
-> **Trade-off note**: nrf52_bsim 仅运行 App Core 那一侧的 BLE stack（单核），因此未在 bsim 里复现 nRF5340 的 App↔Net IPC。双核 IPC 仍由 §6.1 硬件目标 clean sysbuild（`build/ipc_radio/` + `merged.hex`）证明。bsim 这一层专门证明 BLE 协议栈在 OTA 上的行为正确，两层证据组合等价于全链路。
+> **Trade-off note**: nrf52_bsim only runs the App Core's side of the BLE stack (single core), so it does not reproduce the nRF5340 App↔Net IPC inside bsim. The dual-core IPC is still proved by the §6.1 hardware-target clean sysbuild (`build/ipc_radio/` + `merged.hex`). The bsim layer specifically proves that the BLE stack behaves correctly over the air; the two layers of evidence combined are equivalent to an end-to-end proof.
 
-验证脚本（大致）：
+Verification script (approximate):
 ```bash
 sim_id=nrf5340hrs-$(date +%s)
 (cd $BSIM_OUT_PATH/bin && ./bs_2G4_phy_v1 -s=$sim_id -D=2 -sim_length=10e6) &
@@ -278,83 +278,83 @@ wait
 grep -q 'bpm' reports/bsim-hrs-central.log
 ```
 
-#### AC-V2 — native_sim + Chrome Web Bluetooth（真实 2.4 GHz phy）
+#### AC-V2 — native_sim + Chrome Web Bluetooth (real 2.4 GHz phy)
 
-**前置**：两个 BLE adapter（系统 `hci0` + USB dongle `hci1`）；dongle 用 `sudo rfkill unblock bluetooth && sudo hciconfig hci1 up`。
+**Prerequisite**: two BLE adapters (system `hci0` + USB dongle `hci1`); bring the dongle up with `sudo rfkill unblock bluetooth && sudo hciconfig hci1 up`.
 
-- [x] **AC-V2.a** 新增 `scripts/native-userchan/native.conf` overlay：关闭 SPIM4/RTT（`CONFIG_SPI_NRFX=n` 等）；保留 HRS；`BT_USERCHAN` 由 `native_sim.dts` chosen `zephyr,bt-hci = &bt_hci_userchan` 自动选中（BT_USERCHAN 无 prompt 不能直接 set）
-- [x] **AC-V2.b** `west build -b native_sim -d build-native --no-sysbuild -- -DEXTRA_CONF_FILE=scripts/native-userchan/native.conf` 产出 `zephyr.exe` (2.4 MB)
-- [x] **AC-V2.c** `sudo setcap 'cap_net_admin,cap_net_raw+ep' zephyr.exe` 后 `./zephyr.exe -bt-dev=hci1` 打印 `BLE stack enabled` + `advertising as "nRF5340_HR"`
-- [x] **AC-V2.d** `scripts/native-userchan/ble-chrome-test.py` (Patchright headed Chromium + `tools/ble-hr-test.html`) 经 hci0 连接 `nRF5340_HR`，订阅 0x2A37 notify
-- [x] **AC-V2.e** 浏览器 `#bpm` 显示 62/63/64 bpm 连续 3+ 次
-- [x] **AC-V2.f** `reports/ble-hr-connected.png` + `reports/ble-hr-log.txt` 已保存
+- [x] **AC-V2.a** Add `scripts/native-userchan/native.conf` overlay: disable SPIM4/RTT (`CONFIG_SPI_NRFX=n`, etc.); keep HRS; `BT_USERCHAN` is automatically selected by the `native_sim.dts` chosen `zephyr,bt-hci = &bt_hci_userchan` (BT_USERCHAN has no prompt and cannot be set directly)
+- [x] **AC-V2.b** `west build -b native_sim -d build-native --no-sysbuild -- -DEXTRA_CONF_FILE=scripts/native-userchan/native.conf` produces `zephyr.exe` (2.4 MB)
+- [x] **AC-V2.c** After `sudo setcap 'cap_net_admin,cap_net_raw+ep' zephyr.exe`, running `./zephyr.exe -bt-dev=hci1` prints `BLE stack enabled` + `advertising as "nRF5340_HR"`
+- [x] **AC-V2.d** `scripts/native-userchan/ble-chrome-test.py` (Patchright headed Chromium + `tools/ble-hr-test.html`) connects to `nRF5340_HR` via hci0 and subscribes to 0x2A37 notify
+- [x] **AC-V2.e** The browser `#bpm` shows 62/63/64 bpm for 3+ consecutive updates
+- [x] **AC-V2.f** `reports/ble-hr-connected.png` + `reports/ble-hr-log.txt` saved
 
-评审证据：`reports/ble-hr-connected.png` 直接放进 README 的 verification 段，让面试官无需本地复现就能看到 end-to-end 行为。
+Review evidence: `reports/ble-hr-connected.png` is dropped directly into the README's verification section so the interviewer can see the end-to-end behaviour without reproducing locally.
 
-### 6.4 静态代码质量（免费拿到的保证）
+### 6.4 Static Code Quality (Free Guarantees)
 
-- [ ] **AC-Q1**：无编译器 warning（`-Wall -Wextra` 默认由 Zephyr 启用）
-- [ ] **AC-Q2**：`clang-format` / Zephyr 代码风格一致（可选 `west format`）
-- [ ] **AC-Q3**：Git history 干净（合理的 commit 粒度，而不是一次 dump）
+- [ ] **AC-Q1**: no compiler warnings (`-Wall -Wextra` enabled by Zephyr by default)
+- [ ] **AC-Q2**: `clang-format` / Zephyr code style consistency (optionally `west format`)
+- [ ] **AC-Q3**: clean git history (reasonable commit granularity, not a single dump)
 
-### 6.5 验收优先级（时间紧张时）
+### 6.5 Acceptance Priorities (When Time Is Tight)
 
-**必过（P0）**：§6.1 全部 + §6.2 AC-B1, AC-B2, AC-B3, AC-B4 —— 这是 clean build + 证明配置正确的最小集。
+**Must pass (P0)**: all of §6.1 + §6.2 AC-B1, AC-B2, AC-B3, AC-B4 — the minimum set for a clean build + proof of correct configuration.
 
-**强烈建议（P1）**：§6.2 AC-B5, AC-B6, AC-B7, AC-B8 + §6.4 全部 —— 体现工程严谨性。
+**Strongly recommended (P1)**: §6.2 AC-B5, AC-B6, AC-B7, AC-B8 + all of §6.4 — demonstrates engineering rigour.
 
-**加分项（P2）**：§6.3 bsim 端到端 BLE 仿真 —— 在没有硬件的情况下展示对 Nordic 生态的深度掌握，极大加分；唯一成本是 BabbleSim 的额外安装。
-
----
-
-## 6A. 无硬件验证工具链速查
-
-| 工具 | 用途 | 命令/方式 | 来源 |
-|------|------|----------|------|
-| `west build --cmake-only` | 不编译只验证 CMake/DTS/Kconfig 配置 | `west build -b <board> --cmake-only --sysbuild` | Zephyr 标准 |
-| `zephyr.dts` 检查 | 验证 DTS overlay 生效 | 查看 `build/*/zephyr/zephyr.dts` | 自动生成 |
-| `.config` 检查 | 验证 Kconfig 最终值 | 查看 `build/*/zephyr/.config` | 自动生成 |
-| `rom_report` / `ram_report` | 静态 footprint 分析 | `west build -t rom_report` | Zephyr 标准 |
-| **Twister** | 测试运行器，支持 `--build-only` 做回归 | `twister -T . -p <board> --build-only` | Zephyr 标准 |
-| **native_sim** | 纯 POSIX 应用仿真（不含 nRF HW 模型）| `west build -b native_sim` | Zephyr 标准 |
-| **nrf5340bsim** | nRF5340 HW 模型 + POSIX 仿真 | `west build -b nrf5340bsim/nrf5340/cpuapp` | Zephyr/Nordic |
-| **BabbleSim** | BLE/15.4 物理层信道仿真器 | 独立安装 (`BSIM_OUT_PATH`) | [babblesim.github.io](https://babblesim.github.io) |
-| `nrfutil` / `nrfjprog` | 烧录/调试（本任务**不需要**） | — | Nordic |
+**Bonus (P2)**: §6.3 bsim end-to-end BLE simulation — without hardware, demonstrates deep familiarity with the Nordic ecosystem and scores significantly; the only cost is the extra BabbleSim setup.
 
 ---
 
-## 7. 风险与缓解
+## 6A. Hardware-free Verification Toolchain Cheat Sheet
 
-| 风险 | 影响 | 缓解 |
-|------|------|------|
-| NCS 版本与 API 变化（board naming 从 v2.7 起改 hierarchical） | 构建失败 | 使用当前稳定版并在 README 固定版本号 |
-| SPIM4 32 MHz 信号完整性需要 HIGH drive pin | 实机可能跑不通（但 clean build 不受影响）| 在 pinctrl 中设置 `nordic,drive-mode` 或用 DK 提供的 HS 引脚；README 注明 |
-| Net core 镜像未正确构建 | 无 BLE | 使用 sysbuild + 官方 `ipc_radio` 模板 |
-| 本机无 NCS 环境 | 无法验证 clean build | 先验证本机安装，或用 NCS docker/toolchain manager |
-| LLM 声明不诚实 | 面试减分 | 诚实列出 Copilot / Claude 等及具体用途 |
-
----
-
-## 8. 待确认/决策项（请 review）
-
-1. **NCS 版本**: 拟使用最新稳定版（将在实施前通过 `west` / 官方页面确认）。是否接受？
-2. **板名 variant**: `nrf5340dk/nrf5340/cpuapp`（hierarchical，NCS v2.7+）。是否 OK？
-3. **SPI 引脚选择**: 需从 DK 可用引脚中选两个物理相邻、方便跳线短接的做 MOSI/MISO（会在 overlay 中注明）。是否由我定？
-4. **心率数据**: 使用模拟数据（60–100 bpm 递增/正弦）。是否 OK，还是需要接入特定传感器？
-5. **GitHub 仓库**: 名称用 `Nordic_nRF5340_SPI_loopback`（匹配当前工作区），public repo。是否 OK？
-6. **LLM 声明格式**: 计划列出 "GitHub Copilot (Claude Opus 4.7) — 用于生成 Kconfig 模板、DTS overlay 草稿、README 文案；所有代码经人工审阅并本地 clean build 验证"。是否接受？
-7. **本机 NCS 安装状态**: 需确认 `~/ncs` 是否已装 toolchain。要不要我现在检查？
-8. **是否启用 bsim 加分项（§6.3）**: 额外安装 BabbleSim，在无硬件情况下端到端验证 BLE HRS。成本：一次性配置 ~30 分钟；收益：面试加分明显（展示对 Nordic 生态深度掌握）。建议 **YES**，是否同意？
-9. **是否加 Twister 集成（§6.2 AC-B 自动化）**: 增加 `sample.yaml` 使 `twister --build-only` 能自动回归构建。成本：十几行 YAML；收益：体现工程化思维。建议 **YES**，是否同意？
+| Tool | Purpose | Command / Usage | Source |
+|------|---------|-----------------|--------|
+| `west build --cmake-only` | Validate CMake/DTS/Kconfig without compiling | `west build -b <board> --cmake-only --sysbuild` | Zephyr standard |
+| `zephyr.dts` inspection | Confirm DTS overlay applied | view `build/*/zephyr/zephyr.dts` | auto-generated |
+| `.config` inspection | Confirm final Kconfig values | view `build/*/zephyr/.config` | auto-generated |
+| `rom_report` / `ram_report` | Static footprint analysis | `west build -t rom_report` | Zephyr standard |
+| **Twister** | Test runner, supports `--build-only` for regression | `twister -T . -p <board> --build-only` | Zephyr standard |
+| **native_sim** | Pure POSIX application simulation (no nRF HW model) | `west build -b native_sim` | Zephyr standard |
+| **nrf5340bsim** | nRF5340 HW model + POSIX simulation | `west build -b nrf5340bsim/nrf5340/cpuapp` | Zephyr/Nordic |
+| **BabbleSim** | BLE/15.4 physical-layer channel simulator | Install separately (`BSIM_OUT_PATH`) | [babblesim.github.io](https://babblesim.github.io) |
+| `nrfutil` / `nrfjprog` | Flashing / debugging (**not needed** for this task) | — | Nordic |
 
 ---
 
-## 9. 下一步
+## 7. Risks and Mitigations
 
-待你确认 §8 中的决策项后，进入实施：
-1. 检查 / 安装 NCS 工具链
-2. 生成项目骨架（CMakeLists / prj.conf / sysbuild.conf / app.overlay / src/*）
-3. 本地 `west build` 验证 clean build
-4. `git init` + `.gitignore` + 初次 commit
-5. 推送到 GitHub 并准备邀请
-6. 完成 README（含 LLM 声明）
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| NCS version and API changes (board naming became hierarchical from v2.7) | Build failure | Use the current stable release and pin the version in the README |
+| SPIM4 32 MHz signal integrity requires HIGH drive pins | May not work on real hardware (but does not affect clean build) | Set `nordic,drive-mode` in pinctrl or use the HS pins the DK exposes; note in README |
+| Net-core image not built correctly | No BLE | Use sysbuild + official `ipc_radio` template |
+| No NCS environment locally | Cannot verify the clean build | Verify the local install first, or use NCS docker / toolchain manager |
+| Dishonest LLM disclosure | Deduction at interview | Honestly list Copilot / Claude etc. and their specific usage |
+
+---
+
+## 8. Items Pending Confirmation / Decisions (please review)
+
+1. **NCS version**: plan to use the latest stable release (to be confirmed via `west` / the official page before implementation). Accept?
+2. **Board variant**: `nrf5340dk/nrf5340/cpuapp` (hierarchical, NCS v2.7+). OK?
+3. **SPI pin selection**: need to pick two physically adjacent pins on the DK, easy to jumper-short for MOSI/MISO (noted in the overlay). OK to let me decide?
+4. **Heart-rate data**: use simulated data (60–100 bpm ramp / sine). OK, or should a specific sensor be integrated?
+5. **GitHub repo**: use the name `Nordic_nRF5340_SPI_loopback` (matches the workspace), public repo. OK?
+6. **LLM disclosure format**: plan to list "GitHub Copilot (Claude Opus 4.7) — used for generating Kconfig templates, DTS overlay drafts, README prose; all code was human-reviewed and validated by a local clean build". Accept?
+7. **Local NCS install status**: need to confirm whether `~/ncs` already has the toolchain installed. Want me to check now?
+8. **Enable bsim bonus (§6.3)?** Extra BabbleSim install, to end-to-end verify BLE HRS without hardware. Cost: ~30 minutes of one-off setup. Benefit: significant interview bonus (demonstrates Nordic-ecosystem depth). Recommendation: **YES**, agree?
+9. **Add Twister integration (§6.2 AC-B automation)?** Add `sample.yaml` so `twister --build-only` can regress the build automatically. Cost: a dozen lines of YAML. Benefit: demonstrates engineering mindset. Recommendation: **YES**, agree?
+
+---
+
+## 9. Next Steps
+
+Once you confirm the decisions in §8, proceed with implementation:
+1. Check / install the NCS toolchain
+2. Generate the project skeleton (CMakeLists / prj.conf / sysbuild.conf / app.overlay / src/*)
+3. Validate a clean build locally with `west build`
+4. `git init` + `.gitignore` + initial commit
+5. Push to GitHub and prepare the invitation
+6. Finalise the README (including LLM disclosure)

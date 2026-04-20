@@ -1,68 +1,68 @@
 # nRF5340 SPI Loopback + BLE HR — Copilot Instructions
 
-## 项目定位
+## Project Overview
 
-这是一个 **Nordic nRF5340 DK** 嵌入式项目，使用 **Zephyr RTOS / nRF Connect SDK (NCS)** 开发。
-核心功能：SPIM4 32MHz SPI Loopback 测试 + BLE Heart Rate Service Peripheral。
-交付标准：clean build + GitHub 仓库 + LLM 使用声明。
+This is an embedded project for the **Nordic nRF5340 DK**, developed using **Zephyr RTOS / nRF Connect SDK (NCS)**.
+Core functionality: SPIM4 32MHz SPI loopback test + BLE Heart Rate Service Peripheral.
+Delivery criteria: clean build + GitHub repository + LLM usage disclosure.
 
-## 技术栈
+## Tech Stack
 
-| 项 | 值 |
-|----|---|
-| SoC | Nordic nRF5340 (双核: App Core M33@128MHz + Net Core M33@64MHz) |
+| Item | Value |
+|------|-------|
+| SoC | Nordic nRF5340 (dual-core: App Core M33@128MHz + Net Core M33@64MHz) |
 | RTOS | Zephyr |
 | SDK | nRF Connect SDK (NCS) **v2.9.0** |
-| 构建工具 | west, CMake, ninja |
+| Build tools | west, CMake, ninja |
 | IDE | VS Code + nRF Connect for VS Code |
-| 板名 | `nrf5340dk/nrf5340/cpuapp` |
-| 语言 | C (Zephyr API) |
+| Board | `nrf5340dk/nrf5340/cpuapp` |
+| Language | C (Zephyr API) |
 
-## 构建命令
+## Build Commands
 
 ```bash
-# 完整构建（含 net core）
+# Full build (includes net core)
 west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
 
-# 仅 CMake 配置（快速验证）
+# CMake configuration only (quick validation)
 west build -b nrf5340dk/nrf5340/cpuapp --sysbuild --cmake-only
 
-# 增量构建
+# Incremental build
 west build
 
-# 清空重建
+# Clean rebuild
 rm -rf build && west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
 
-# 烧录（需硬件）
+# Flash (requires hardware)
 west flash
 
-# ROM/RAM 报告
+# ROM/RAM reports
 west build -t rom_report
 west build -t ram_report
 ```
 
-## 项目结构
+## Project Structure
 
 ```
 Nordic_nRF5340_SPI_loopback/
-├── CMakeLists.txt          # 顶层 CMake
+├── CMakeLists.txt          # Top-level CMake
 ├── prj.conf                # Zephyr Kconfig
-├── sysbuild.conf           # Sysbuild 配置（net core）
-├── app.overlay             # Devicetree overlay（SPIM4 pinctrl）
+├── sysbuild.conf           # Sysbuild configuration (net core)
+├── app.overlay             # Devicetree overlay (SPIM4 pinctrl)
 ├── src/
-│   ├── main.c              # 入口：初始化 SPI 线程 + BLE 广播
-│   ├── spi_loopback.c      # SPI loopback 测试模块
+│   ├── main.c              # Entry: init SPI thread + BLE advertising
+│   ├── spi_loopback.c      # SPI loopback test module
 │   ├── spi_loopback.h
-│   ├── ble_hrs.c           # BLE Heart Rate Service 模块
+│   ├── ble_hrs.c           # BLE Heart Rate Service module
 │   └── ble_hrs.h
 ├── .gitignore
-├── REQUIREMENTS.md         # 需求文档
-├── README.md               # 交付说明 + LLM 声明
+├── REQUIREMENTS.md         # Requirements document
+├── README.md               # Delivery notes + LLM disclosure
 └── .github/
-    ├── copilot-instructions.md   # 项目级 AI 指令
+    ├── copilot-instructions.md   # Project-level AI instructions
     ├── agents/
-    │   └── dev-workflow.agent.md  # Agent 定义
-    └── skills/                    # Agent Skills
+    │   └── dev-workflow.agent.md  # Agent definition
+    └── skills/                    # Agent skills
         ├── daily-iteration/
         ├── automated-testing/
         ├── code-refactoring/
@@ -70,48 +70,48 @@ Nordic_nRF5340_SPI_loopback/
         └── ble-web-bluetooth-debugger/
 ```
 
-## 工作规则
+## Working Rules
 
-1. **所有构建必须使用 `west build`**，不要直接调用 cmake/ninja
-2. **DTS overlay 修改后必须清空 build 重建**（DTS 缓存可能导致假成功）
-3. **prj.conf 修改后建议清空重建**（Kconfig 变更有时不触发增量构建）
-4. **不要修改 NCS SDK 源码** — 所有配置通过 prj.conf / app.overlay / sysbuild.conf
-5. **Net core 使用 sysbuild 自动管理** — 不要手动构建 ipc_radio
-6. **所有 Python 操作使用 `.venv/`** — 禁止系统 Python
+1. **All builds must use `west build`** — do not invoke cmake/ninja directly
+2. **After DTS overlay changes, always wipe the build dir and rebuild** (DTS cache can produce false greens)
+3. **After prj.conf changes, a clean rebuild is recommended** (Kconfig changes sometimes fail to trigger incremental builds)
+4. **Do not modify NCS SDK source code** — configure everything through prj.conf / app.overlay / sysbuild.conf
+5. **The net core is managed automatically by sysbuild** — do not build ipc_radio by hand
+6. **All Python operations use `.venv/`** — the system Python is forbidden
 
-## nRF5340 关键知识
+## Key nRF5340 Facts
 
-### 双核架构
-- **App Core** (M33@128MHz, 1MB Flash, 512KB RAM): 运行应用代码 + BLE Host
-- **Net Core** (M33@64MHz, 256KB Flash, 64KB RAM): 运行 BLE Controller (ipc_radio)
-- 两核通过 IPC (Inter-Processor Communication) 通信
+### Dual-core architecture
+- **App Core** (M33@128MHz, 1MB Flash, 512KB RAM): runs the application code + BLE Host
+- **Net Core** (M33@64MHz, 256KB Flash, 64KB RAM): runs the BLE Controller (ipc_radio)
+- The two cores communicate through IPC (Inter-Processor Communication)
 
 ### SPIM4
-- nRF5340 上唯一支持 **32 MHz** 的 SPI 实例
-- SPIM0–3 上限 8 MHz
-- 需要 HIGH drive 引脚配置以保证信号完整性
+- The only SPI instance on the nRF5340 that supports **32 MHz**
+- SPIM0–3 top out at 8 MHz
+- Requires HIGH drive pin configuration to guarantee signal integrity
 
 ### Sysbuild
-- NCS v2.7+ 默认使用 sysbuild 管理多镜像构建
-- `sysbuild.conf` 配置 net core 使用 `ipc_radio` + `bt_hci_ipc`
-- 构建产出 `merged.hex` = app core hex + net core hex 合并
+- NCS v2.7+ uses sysbuild by default to manage multi-image builds
+- `sysbuild.conf` configures the net core to use `ipc_radio` + `bt_hci_ipc`
+- The build produces `merged.hex` = app core hex + net core hex combined
 
-### BLE 配置
-- `CONFIG_BT_HRS=y` 启用 Zephyr 内置 Heart Rate Service
-- `bt_hrs_notify()` 发送心率数据
-- Peripheral role: 广播 → 等待连接 → notify → 断开 → 恢复广播
+### BLE configuration
+- `CONFIG_BT_HRS=y` enables Zephyr's built-in Heart Rate Service
+- `bt_hrs_notify()` sends heart rate data
+- Peripheral role: advertise → wait for connection → notify → disconnect → resume advertising
 
-## 代码质量要求
+## Code Quality Requirements
 
-- 模块化：spi_loopback / ble_hrs / main 分离
-- 每个 .c 文件 ≤ 300 行
-- 每个函数 ≤ 50 行
-- 零编译警告
-- 使用 Zephyr LOG 子系统（LOG_MODULE_REGISTER）
-- 错误码必须检查（spi_transceive 返回值等）
-- 注释语言：英文
+- Modular: spi_loopback / ble_hrs / main kept separate
+- Each `.c` file ≤ 300 lines
+- Each function ≤ 50 lines
+- Zero compiler warnings
+- Use the Zephyr LOG subsystem (`LOG_MODULE_REGISTER`)
+- Always check error codes (return value of `spi_transceive`, etc.)
+- Comment language: English
 
-## Git 规范
+## Git Conventions
 
 ```
 feat: add SPI loopback test module
@@ -121,18 +121,18 @@ docs: add README with build instructions and LLM statement
 chore: add .gitignore and project skeleton
 ```
 
-## 禁止事项
+## Prohibitions
 
-- ❌ 不要将 `build/`、`.west/`、`.venv/` 提交到 Git
-- ❌ 不要在代码中硬编码调试用的引脚号（使用 DTS 定义）
-- ❌ 不要跳过构建验证就提交
-- ❌ 不要忽略编译警告
-- ❌ 不要在 ISR 中执行复杂操作或日志打印
-- ❌ 不要 fork NCS 代码到仓库
+- ❌ Do not commit `build/`, `.west/`, or `.venv/` to Git
+- ❌ Do not hardcode debug pin numbers in the code (use DTS definitions)
+- ❌ Do not commit without running the build validation
+- ❌ Do not ignore compiler warnings
+- ❌ Do not perform complex operations or logging inside ISRs
+- ❌ Do not fork NCS source code into the repository
 
-## 关键参考文档
+## Key Reference Documents
 
-开始工作前，请先阅读以下文档了解完整需求和计划：
-- **`REQUIREMENTS.md`** (项目根目录) — 原始详细需求
-- **`.github/requirements.md`** — 精炼的功能需求、验收标准 (P0/P1/P2)、里程碑定义
-- **`.github/daily-plan.md`** — 每日迭代计划模板、里程碑进度跟踪
+Before starting work, read the following to understand the full requirements and plan:
+- **`REQUIREMENTS.md`** (project root) — original detailed requirements
+- **`.github/requirements.md`** — distilled functional requirements, acceptance criteria (P0/P1/P2), milestone definitions
+- **`.github/daily-plan.md`** — daily iteration plan template, milestone progress tracking

@@ -1,126 +1,126 @@
-# nRF5340_SPI_loopback - 每日工作计划
+# nRF5340_SPI_loopback — Daily Work Plan
 
-## 项目目标
+## Project Goal
 
-面试技术任务 — 在 nRF5340 DK 上实现 SPIM4 32MHz SPI Loopback + BLE Heart Rate Service，交付 clean build 的 GitHub 仓库。
+Interview technical task — implement a SPIM4 32MHz SPI loopback + BLE Heart Rate Service on the nRF5340 DK, and deliver a GitHub repository with a clean build.
 
 ---
 
-## Day N 计划模板
+## Day N Plan Template
 
-### 晨会计划
+### Morning planning
 
-**日期**: YYYY-MM-DD
-**迭代日**: Day N
+**Date**: YYYY-MM-DD
+**Iteration day**: Day N
 
-#### 昨日回顾
-- 完成: 
-- 未完成: 
-- 阻塞: 
+#### Yesterday recap
+- Completed:
+- Unfinished:
+- Blockers:
 
-#### 今日目标
-1. [ ] 目标1
-2. [ ] 目标2
-3. [ ] 目标3
+#### Today's goals
+1. [ ] Goal 1
+2. [ ] Goal 2
+3. [ ] Goal 3
 
-#### 风险与依赖
+#### Risks and dependencies
 - 
 
 ---
 
-### 执行记录
+### Execution log
 
-#### 任务1: 
-- 开始时间: 
-- 完成时间: 
-- 构建结果: ✅/❌ (`west build` 通过?)
-- 备注: 
+#### Task 1: 
+- Start time: 
+- End time: 
+- Build result: ✅/❌ (`west build` passed?)
+- Notes: 
 
-#### 任务2: 
-- 开始时间: 
-- 完成时间: 
-- 构建结果: ✅/❌
-- 备注: 
+#### Task 2: 
+- Start time: 
+- End time: 
+- Build result: ✅/❌
+- Notes: 
 
 ---
 
-### 晚间回顾
+### Evening review
 
-#### 完成状态
-| 任务 | 状态 | 备注 |
-|------|------|------|
-| 任务1 | | |
-| 任务2 | | |
+#### Completion status
+| Task | Status | Notes |
+|------|--------|-------|
+| Task 1 | | |
+| Task 2 | | |
 
-#### 代码质量
-- 新增代码行数: 
-- 编译警告数: 
+#### Code quality
+- New lines of code: 
+- Compiler warnings: 
 - Git commits: 
 
-#### 构建验证检查点
-- [ ] `west build --sysbuild` 通过
-- [ ] DTS overlay 生效（spi4 配置正确）
-- [ ] Kconfig 生效（SPI + BLE 启用）
-- [ ] merged.hex 存在
+#### Build verification checkpoints
+- [ ] `west build --sysbuild` passes
+- [ ] DTS overlay applied (spi4 configured correctly)
+- [ ] Kconfig applied (SPI + BLE enabled)
+- [ ] `merged.hex` present
 
-#### 回归验证（每日必做）
-- [ ] `bash verify-acceptance.sh` 全部已完成功能项 PASS
-- [ ] 无回归失败（新功能未破坏已通过项）
-- [ ] wrap-up commit 前回归验证已通过
+#### Regression gate (mandatory every day)
+- [ ] `bash verify-acceptance.sh` — every already-completed feature item PASSes
+- [ ] No regressions (new features did not break previously-passing items)
+- [ ] Regression check passed before the wrap-up commit
 
-#### 明日优先事项
+#### Top priorities for tomorrow
 1. 
 2. 
 
-#### 技术笔记
+#### Technical notes
 - 
 
 ---
 
-## 里程碑跟踪
+## Milestone Tracking
 
-### M1: 项目骨架 + 环境验证
-- [ ] NCS 工具链就绪
-- [ ] 项目目录结构完整
-- [ ] `west build --cmake-only` 通过
+### M1: Project skeleton + environment validation
+- [ ] NCS toolchain ready
+- [ ] Project directory structure complete
+- [ ] `west build --cmake-only` passes
 
-### M2: SPI Loopback 实现
-- [ ] SPIM4 DTS overlay 完成
-- [ ] spi_loopback.c/h 实现
-- [ ] 独立线程运行
-- [ ] 构建通过
+### M2: SPI Loopback implementation
+- [ ] SPIM4 DTS overlay complete
+- [ ] `spi_loopback.c/h` implemented
+- [ ] Running in a dedicated thread
+- [ ] Build passes
 
-### M3: BLE Heart Rate 实现
-- [ ] BLE 协议栈配置完成
-- [ ] ble_hrs.c/h 实现
-- [ ] sysbuild + ipc_radio 构建通过
+### M3: BLE Heart Rate implementation
+- [ ] BLE stack configured
+- [ ] `ble_hrs.c/h` implemented
+- [ ] sysbuild + ipc_radio build passes
 
-### M4: 集成 + 验收 + 发布
-- [ ] SPI + BLE 集成
-- [ ] 所有 P0 验收标准通过
-- [ ] README + LLM 声明完成
-- [ ] `verify-acceptance.sh` 全部 PASS
-- [ ] Git 提交历史整理
-- [ ] GitHub 仓库发布
-- [ ] 邀请面试官
-- [ ] Fresh clone test 通过
+### M4: Integration + acceptance + release
+- [ ] SPI + BLE integrated
+- [ ] All P0 acceptance criteria pass
+- [ ] README + LLM disclosure complete
+- [ ] `verify-acceptance.sh` all PASS
+- [ ] Git history cleaned up
+- [ ] GitHub repo published
+- [ ] Interviewer invited
+- [ ] Fresh clone test passes
 
-## 验收标准进度
+## Acceptance Criteria Progress
 
-### P0 必过
-- [ ] clean build 通过
-- [ ] merged.hex 存在
-- [ ] GitHub 仓库可访问
-- [ ] LLM 使用声明
-- [ ] .gitignore 正确
-- [ ] DTS/Kconfig/Sysbuild 校验通过
+### P0 must-pass
+- [ ] Clean build passes
+- [ ] `merged.hex` present
+- [ ] GitHub repo accessible
+- [ ] LLM usage disclosure
+- [ ] `.gitignore` correct
+- [ ] DTS/Kconfig/sysbuild checks pass
 
-### P1 强烈建议
-- [ ] ROM/RAM 报告正常
-- [ ] 零 warning
-- [ ] 代码风格一致
-- [ ] Git history 干净
+### P1 strongly recommended
+- [ ] ROM/RAM reports clean
+- [ ] Zero warnings
+- [ ] Consistent code style
+- [ ] Clean git history
 
-### P2 加分项
-- [ ] bsim 编译
-- [ ] Twister 集成
+### P2 bonus
+- [ ] bsim compile
+- [ ] Twister integration

@@ -1,36 +1,36 @@
 ---
 name: "tmux-multi-shell"
-description: "tmux 多终端管理 — 幂等会话创建、命令执行等待、退出码检测、输出捕获"
+description: "tmux multi-terminal management — idempotent session creation, command completion waiting, exit-code detection, output capture"
 ---
 
-# Skill: tmux 多终端管理（AI Agent 优化版）
+# Skill: tmux Multi-Terminal Management (AI-agent-optimised edition)
 
-## 用途
+## Purpose
 
-为 AI Agent 提供可靠的多终端自动化操作能力。核心价值：**在多个隔离窗口中并行执行命令，可靠地等待完成、获取完整输出、判断成败。**
+Provide an AI agent with reliable multi-terminal automation. Core value: **run commands in parallel across isolated windows, reliably wait for completion, capture full output, and determine success/failure.**
 
-**何时使用：**
-- 需要同时运行多个终端任务（编译 + 烧录 + 串口监控）
-- 需要持久化终端会话（Agent 重启后可恢复）
-- 需要发送命令并可靠地获取结果
+**When to use:**
+- You need to run multiple terminal tasks concurrently (build + flash + serial monitor)
+- You need a persistent terminal session (survives agent restarts)
+- You need to send a command and reliably capture its result
 
-**何时不使用：**
-- 单终端任务足够的情况
-- 非命令行环境
+**When not to use:**
+- A single terminal is enough
+- Non-CLI environments
 
-## 前置条件
+## Prerequisites
 
-- `tmux` 已安装（macOS: `brew install tmux`, Linux: `apt install tmux`）
-- 终端支持 tmux
+- `tmux` installed (macOS: `brew install tmux`, Linux: `apt install tmux`)
+- The terminal supports tmux
 
-## 操作步骤
+## Procedure
 
-### 1. 幂等创建项目会话（P0）
+### 1. Idempotent project-session creation (P0)
 
-> **关键：** Agent 可能重启或重试，必须用 `has-session` 避免重复创建。
+> **Key:** the agent may restart or retry, so always use `has-session` to avoid duplicate creation.
 
 ```bash
-# 幂等创建 — 会话已存在则跳过，不存在则新建
+# Idempotent create — skip if the session already exists
 tmux has-session -t {{PROJECT_NAME}} 2>/dev/null || {
   tmux new-session -d -s {{PROJECT_NAME}}
   tmux rename-window -t {{PROJECT_NAME}}:0 'edit'
@@ -40,60 +40,60 @@ tmux has-session -t {{PROJECT_NAME}} 2>/dev/null || {
   echo "[tmux] Session '{{PROJECT_NAME}}' created with 4 windows"
 }
 
-# 验证会话就绪
+# Verify the session is ready
 tmux list-windows -t {{PROJECT_NAME}} -F '#{window_index}:#{window_name}'
 ```
 
 ```bash
-# 幂等添加单个窗口 — 已存在则跳过
+# Idempotent add of a single window — skip if it already exists
 tmux list-windows -t {{PROJECT_NAME}} -F '#{window_name}' | grep -q '^build$' || \
   tmux new-window -t {{PROJECT_NAME}} -n 'build'
 ```
 
-### 2. 标准窗口布局
+### 2. Standard window layout
 
-| 窗口编号 | 名称 | 用途 |
-|---------|------|------|
-| 0 | edit | 代码编辑/git 操作 |
-| 1 | build | 编译构建 |
-| 2 | flash | 烧录固件 |
-| 3 | monitor | 串口日志监控 |
+| Window index | Name | Purpose |
+|--------------|------|---------|
+| 0 | edit | code editing / git operations |
+| 1 | build | compilation |
+| 2 | flash | firmware flashing |
+| 3 | monitor | serial log monitoring |
 
-### 3. 发送命令到指定窗口
+### 3. Send commands to a specific window
 
 ```bash
-# 在 build 窗口执行编译
+# Compile in the build window
 tmux send-keys -t {{PROJECT_NAME}}:build 'west build --sysbuild' C-m
 
-# 在 flash 窗口执行烧录（需硬件）
+# Flash in the flash window (requires hardware)
 tmux send-keys -t {{PROJECT_NAME}}:flash 'west flash' C-m
 
-# 在 monitor 窗口启动串口监控（需硬件）
+# Start the serial monitor (requires hardware)
 tmux send-keys -t {{PROJECT_NAME}}:monitor 'minicom -D /dev/ttyACM0 -b 115200' C-m
 ```
 
-### 4. 等待命令完成 + 退出码检测（P0）
+### 4. Wait for command completion + exit-code detection (P0)
 
-> **核心模式：** AI Agent 的操作闭环 — 发命令 → 等完成 → 读退出码 → 判断成败。
+> **Core pattern:** the AI-agent operation loop — send command → wait for completion → read exit code → judge success/failure.
 
-**原理：** 用 sentinel 标记包裹实际命令，通过轮询 `capture-pane` 检测 sentinel 出现来判断完成。
+**Principle:** wrap the real command with a sentinel and poll `capture-pane` until the sentinel appears.
 
 ```bash
-# === 发送带 sentinel 的命令 ===
-# 格式: 实际命令; 然后输出 sentinel + 退出码
+# === Send a command with a sentinel ===
+# Format: actual command; then echo sentinel + exit code
 SENTINEL="__DONE_$(date +%s)__"
 tmux send-keys -t {{PROJECT_NAME}}:build \
   "west build --sysbuild; echo \"${SENTINEL}_EXIT_\$?\"" C-m
 
-# === 轮询等待完成（带超时） ===
-TIMEOUT=120  # 秒
+# === Poll with a timeout ===
+TIMEOUT=120  # seconds
 ELAPSED=0
-INTERVAL=2   # 每 2 秒检查一次
-sleep 1      # 等待命令开始执行
+INTERVAL=2   # check every 2 seconds
+sleep 1      # give the command time to start
 while [ $ELAPSED -lt $TIMEOUT ]; do
   OUTPUT=$(tmux capture-pane -t {{PROJECT_NAME}}:build -p -S -1000)
   if echo "$OUTPUT" | grep -q "${SENTINEL}_EXIT_[0-9]"; then
-    # 提取退出码
+    # Extract the exit code
     EXIT_CODE=$(echo "$OUTPUT" | grep -o "${SENTINEL}_EXIT_[0-9][0-9]*" | head -1 | grep -o '[0-9]*$')
     if [ "$EXIT_CODE" = "0" ]; then
       echo "[OK] Command succeeded (exit code 0)"
@@ -111,30 +111,30 @@ if [ $ELAPSED -ge $TIMEOUT ]; then
 fi
 ```
 
-**简化版 — 封装为函数：**
+**Simplified — wrapped as a function:**
 
 ```bash
-# tmux_exec: 在指定窗口执行命令，等待完成，返回退出码
-# 用法: tmux_exec <session:window> <command> [timeout_seconds]
+# tmux_exec: run a command in the given window, wait for completion, return the exit code
+# Usage: tmux_exec <session:window> <command> [timeout_seconds]
 tmux_exec() {
   local target="$1"
   local cmd="$2"
   local timeout="${3:-120}"
   local sentinel="__DONE_${RANDOM}__"
 
-  # 发送命令
+  # Send command
   tmux send-keys -t "$target" "$cmd; echo \"${sentinel}_EXIT_\$?\"" C-m
 
-  # 轮询等待
+  # Poll
   local elapsed=0
-  sleep 1  # 等待命令开始执行
+  sleep 1  # give the command time to start
   while [ $elapsed -lt $timeout ]; do
     local output
     output=$(tmux capture-pane -t "$target" -p -S -1000)
     local match
     match=$(echo "$output" | grep -o "${sentinel}_EXIT_[0-9][0-9]*" | head -1)
     if [ -n "$match" ]; then
-      echo "$output"  # 输出完整内容供调用方分析
+      echo "$output"  # print the full content for the caller to analyse
       local code
       code=$(echo "$match" | grep -o '[0-9]*$')
       return "${code:-1}"
@@ -144,10 +144,10 @@ tmux_exec() {
   done
 
   echo "[TIMEOUT] after ${timeout}s"
-  return 124  # 与 GNU timeout 保持一致
+  return 124  # match GNU timeout
 }
 
-# 使用示例
+# Example
 tmux_exec "{{PROJECT_NAME}}:build" "west build --sysbuild" 300
 if [ $? -eq 0 ]; then
   echo "Build succeeded, proceeding to flash..."
@@ -155,55 +155,55 @@ if [ $? -eq 0 ]; then
 fi
 ```
 
-### 5. 完整输出捕获（P0）
+### 5. Full output capture (P0)
 
-> **关键：** 默认 `capture-pane -p` 只捕获可见区域（约 50 行）。编译错误可能在几百行前，AI 必须读取完整历史。
+> **Key:** by default `capture-pane -p` only captures the visible pane (~50 lines). A build error may be hundreds of lines earlier, so the AI must read the full history.
 
 ```bash
-# 捕获最近 1000 行历史（覆盖大多数编译输出）
+# Capture the last 1000 history lines (covers most build output)
 tmux capture-pane -t {{PROJECT_NAME}}:build -p -S -1000
 
-# 捕获全部历史（从缓冲区起始位置）
+# Capture everything (from the start of the buffer)
 tmux capture-pane -t {{PROJECT_NAME}}:build -p -S -
 
-# 捕获并保存到文件（适合超长输出分析）
+# Capture and save to a file (useful for very long output)
 tmux capture-pane -t {{PROJECT_NAME}}:build -p -S - > /tmp/build-output.txt
-wc -l /tmp/build-output.txt  # 检查行数
+wc -l /tmp/build-output.txt  # check line count
 
-# 只读最后 N 行（节省 Agent 上下文窗口）
+# Only read the last N lines (save agent context window)
 tmux capture-pane -t {{PROJECT_NAME}}:build -p -S -1000 | tail -50
 ```
 
-**设置更大的历史缓冲区（创建会话前）：**
+**Enlarge the history buffer (before creating the session):**
 
 ```bash
-# 将回滚缓冲区设为 10000 行（默认 2000）
+# Scrollback set to 10000 lines (default 2000)
 tmux set-option -g history-limit 10000
 ```
 
-### 6. 超时处理与命令中止（P1）
+### 6. Timeout handling and command abortion (P1)
 
-> **场景：** 命令挂死（如等待用户输入、网络超时），AI 需要主动中止并恢复。
+> **Scenario:** the command hangs (waiting for input, network stall), the AI must abort and recover.
 
 ```bash
-# 方式 1: 发送 Ctrl+C 中止当前命令
+# Option 1: send Ctrl+C to abort the current command
 tmux send-keys -t {{PROJECT_NAME}}:build C-c
 
-# 方式 2: 发送 Ctrl+C 后等待 shell prompt 恢复
+# Option 2: send Ctrl+C and wait for the shell prompt to recover
 tmux send-keys -t {{PROJECT_NAME}}:build C-c
 sleep 1
-# 检查是否回到 shell prompt（通过发送空 echo 测试）
+# Check the shell prompt is back (by sending an empty echo test)
 tmux send-keys -t {{PROJECT_NAME}}:build 'echo __SHELL_READY__' C-m
 sleep 1
 tmux capture-pane -t {{PROJECT_NAME}}:build -p | grep -q __SHELL_READY__ && \
   echo "Shell recovered" || echo "Shell still stuck"
 
-# 方式 3: 强制杀死窗口并重建（最后手段）
+# Option 3: kill and recreate the window (last resort)
 tmux kill-window -t {{PROJECT_NAME}}:build
 tmux new-window -t {{PROJECT_NAME}} -n 'build'
 ```
 
-**tmux_exec 已内置超时处理**（见第 4 节），超时返回退出码 124。典型处理链：
+**`tmux_exec` already has built-in timeout handling** (see section 4); it returns exit code 124 on timeout. A typical chain:
 
 ```bash
 tmux_exec "{{PROJECT_NAME}}:build" "west build --sysbuild" 300
@@ -216,25 +216,25 @@ case $rc in
 esac
 ```
 
-### 7. 结构化输出解析（P1）
+### 7. Structured output parsing (P1)
 
-> **目标：** 从原始 capture-pane 文本中提取 AI 可直接使用的结构化信息，而非依赖 grep 碰运气。
+> **Goal:** pull AI-consumable structured information out of the raw `capture-pane` text instead of hoping `grep` hits the right line.
 
 ```bash
-# === west build 编译输出解析 ===
+# === Parse west build output ===
 OUTPUT=$(tmux capture-pane -t {{PROJECT_NAME}}:build -p -S -1000)
 
-# 提取错误计数
+# Error count
 ERROR_COUNT=$(echo "$OUTPUT" | grep -c "^.*error:")
 WARNING_COUNT=$(echo "$OUTPUT" | grep -c "^.*warning:")
 
-# 提取编译进度（ninja 格式: [nn/mm]）
+# Compile progress (ninja format: [nn/mm])
 PROGRESS=$(echo "$OUTPUT" | grep -oE '\[[0-9]+/[0-9]+\]' | tail -1)
 
-# 提取固件大小信息
+# Firmware-size information
 IMAGE_SIZE=$(echo "$OUTPUT" | grep -oE 'Memory region.*Used' | head -3)
 
-# 汇总报告
+# Summary report
 echo "=== Build Summary ==="
 echo "Errors:   $ERROR_COUNT"
 echo "Warnings: $WARNING_COUNT"
@@ -243,8 +243,8 @@ echo "Firmware: $IMAGE_SIZE"
 ```
 
 ```bash
-# === 通用命令输出解析模式 ===
-# 提取第一条错误的完整上下文（前后 3 行）
+# === Generic command-output parsing pattern ===
+# Extract the full context of the first error (±3 lines)
 tmux capture-pane -t {{PROJECT_NAME}}:build -p -S -1000 | \
   grep -n "error:" | head -1 | cut -d: -f1 | \
   xargs -I{} sed -n "$(({}>=3?{}-3:1)),$(({} + 3))p" <(
@@ -252,21 +252,21 @@ tmux capture-pane -t {{PROJECT_NAME}}:build -p -S -1000 | \
   )
 ```
 
-### 8. 并行命令协调（P1）
+### 8. Parallel-command coordination (P1)
 
-> **场景：** 同时在多个窗口启动任务，等待全部完成后再继续。
+> **Scenario:** launch tasks in multiple windows simultaneously, and wait for all of them to finish before continuing.
 
 ```bash
-# === 并行执行，收集所有结果 ===
+# === Parallel execution, collect all results ===
 
-# 在每个窗口启动命令（带各自的 sentinel）
+# Launch a command in each window (each with its own sentinel)
 S1="__DONE_build_${RANDOM}__"
 S2="__DONE_test_${RANDOM}__"
 
 tmux send-keys -t {{PROJECT_NAME}}:build "make build; echo \"${S1}_EXIT_\$?\"" C-m
 tmux send-keys -t {{PROJECT_NAME}}:edit  "make test; echo \"${S2}_EXIT_\$?\"" C-m
 
-# 等待所有命令完成
+# Wait for all commands to finish
 TIMEOUT=300
 ELAPSED=0
 BUILD_DONE=0
@@ -283,24 +283,24 @@ while [ $ELAPSED -lt $TIMEOUT ] && { [ $BUILD_DONE -eq 0 ] || [ $TEST_DONE -eq 0
   ELAPSED=$((ELAPSED + 2))
 done
 
-# 汇报结果
+# Report
 echo "Build: $([ $BUILD_DONE -eq 1 ] && echo 'completed' || echo 'TIMEOUT')"
 echo "Test:  $([ $TEST_DONE -eq 1 ] && echo 'completed' || echo 'TIMEOUT')"
 ```
 
-### 9. 会话管理
+### 9. Session management
 
 ```bash
-# 列出所有会话
+# List all sessions
 tmux list-sessions
 
-# 检查会话是否存在（脚本中使用）
+# Check session existence (for scripts)
 tmux has-session -t {{PROJECT_NAME}} 2>/dev/null && echo "exists" || echo "not found"
 
-# 附加到会话（人类调试时使用）
+# Attach to the session (for human debugging)
 tmux attach-session -t {{PROJECT_NAME}}
 
-# 安全关闭 — 发送 Ctrl+C 到所有窗口后再销毁
+# Clean shutdown — send Ctrl+C to every window, then destroy
 for win in $(tmux list-windows -t {{PROJECT_NAME}} -F '#{window_name}'); do
   tmux send-keys -t "{{PROJECT_NAME}}:${win}" C-c 2>/dev/null
 done
@@ -308,16 +308,16 @@ sleep 1
 tmux kill-session -t {{PROJECT_NAME}}
 ```
 
-## Self-Test（自检）
+## Self-Test
 
-> 验证 tmux 可用，且 P0/P1 全部能力正常。
+> Validate that tmux is usable and that all P0/P1 capabilities work.
 
-### 自检步骤
+### Self-test steps
 
 ```bash
 #!/bin/bash
 # self-test for tmux-multi-shell
-# 运行: bash skills/tmux-multi-shell/self-test.sh
+# Run: bash skills/tmux-multi-shell/self-test.sh
 
 SESSION="__tmux_skill_test__"
 PASS=0
@@ -337,23 +337,23 @@ test_case() {
 cleanup() { tmux kill-session -t $SESSION 2>/dev/null; }
 trap cleanup EXIT
 
-# --- Test 1: tmux 已安装 ---
+# --- Test 1: tmux installed ---
 test_case "tmux_installed" command -v tmux
 
-# --- Test 2: 幂等会话创建（P0）---
+# --- Test 2: idempotent session creation (P0) ---
 test_case "idempotent_session" bash -c '
   SESSION="__tmux_skill_test__"
   tmux kill-session -t $SESSION 2>/dev/null
-  # 首次创建
+  # First create
   tmux has-session -t $SESSION 2>/dev/null || tmux new-session -d -s $SESSION
-  # 重复调用不报错
+  # Repeat call does not error
   tmux has-session -t $SESSION 2>/dev/null || tmux new-session -d -s $SESSION
-  # 验证只有一个
+  # Verify only one exists
   COUNT=$(tmux list-sessions -F "#{session_name}" | grep -c "^${SESSION}$")
   [ "$COUNT" = "1" ]
 '
 
-# --- Test 3: 多窗口创建与发送命令 ---
+# --- Test 3: multi-window creation + send-keys ---
 test_case "multi_window" bash -c '
   SESSION="__tmux_skill_test__"
   tmux new-window -t $SESSION -n win_test 2>/dev/null
@@ -362,7 +362,7 @@ test_case "multi_window" bash -c '
   tmux capture-pane -t $SESSION:win_test -p | grep -q hello_tmux_test
 '
 
-# --- Test 4: 命令完成等待 + 退出码检测（P0）---
+# --- Test 4: command completion wait + exit code (P0) ---
 test_case "wait_and_exit_code" bash -c '
   SESSION="__tmux_skill_test__"
   SENTINEL="__DONE_TEST_$$__"
@@ -382,7 +382,7 @@ test_case "wait_and_exit_code" bash -c '
   exit 1  # timeout
 '
 
-# --- Test 5: 失败命令退出码检测（P0）---
+# --- Test 5: detect failure exit code (P0) ---
 test_case "detect_failure_exit_code" bash -c '
   SESSION="__tmux_skill_test__"
   SENTINEL="__DONE_FAIL_$$__"
@@ -394,7 +394,7 @@ test_case "detect_failure_exit_code" bash -c '
     MATCH=$(echo "$OUTPUT" | grep -o "${SENTINEL}_EXIT_[0-9][0-9]*" | head -1)
     if [ -n "$MATCH" ]; then
       CODE=$(echo "$MATCH" | grep -o "[0-9]*$")
-      [ "$CODE" = "1" ] && exit 0 || exit 1  # 期望退出码=1
+      [ "$CODE" = "1" ] && exit 0 || exit 1  # expect exit code = 1
     fi
     sleep 1
     ELAPSED=$((ELAPSED + 1))
@@ -402,33 +402,33 @@ test_case "detect_failure_exit_code" bash -c '
   exit 1
 '
 
-# --- Test 6: 完整输出捕获（P0）---
+# --- Test 6: full output capture (P0) ---
 test_case "full_output_capture" bash -c '
   SESSION="__tmux_skill_test__"
-  # 生成 200 行输出（超过可见区域）
+  # Produce 200 lines of output (beyond the visible pane)
   tmux send-keys -t $SESSION:win_test "for i in \$(seq 1 200); do echo \"LINE_\$i\"; done" C-m
   sleep 2
-  # 用 -S -1000 捕获，验证能看到第 1 行
+  # Capture with -S -1000 and verify we can see line 1
   OUTPUT=$(tmux capture-pane -t $SESSION:win_test -p -S -1000)
   echo "$OUTPUT" | grep -q "LINE_1" && echo "$OUTPUT" | grep -q "LINE_200"
 '
 
-# --- Test 7: 超时中止（P1）---
+# --- Test 7: timeout abort (P1) ---
 test_case "timeout_abort" bash -c '
   SESSION="__tmux_skill_test__"
-  # 发送一个会阻塞的命令
+  # Send a command that will block
   tmux send-keys -t $SESSION:win_test "sleep 60" C-m
   sleep 1
-  # Ctrl+C 中止
+  # Ctrl+C abort
   tmux send-keys -t $SESSION:win_test C-c
   sleep 1
-  # 验证 shell 恢复 — 能执行新命令
+  # Verify the shell recovered — can run a new command
   tmux send-keys -t $SESSION:win_test "echo __RECOVERED__" C-m
   sleep 1
   tmux capture-pane -t $SESSION:win_test -p | grep -q __RECOVERED__
 '
 
-# --- Test 8: 并行命令协调（P1）---
+# --- Test 8: parallel coordination (P1) ---
 test_case "parallel_coordination" bash -c '
   SESSION="__tmux_skill_test__"
   tmux new-window -t $SESSION -n win_para 2>/dev/null
@@ -446,63 +446,62 @@ test_case "parallel_coordination" bash -c '
   [ $DONE1 -eq 1 ] && [ $DONE2 -eq 1 ]
 '
 
-# --- 汇总 ---
+# --- Summary ---
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 exit $FAIL
 ```
 
-### 预期结果
+### Expected results
 
-| 测试项 | 优先级 | 预期输出 | 验证能力 |
-|--------|--------|---------|----------|
-| tmux_installed | - | `SELF_TEST_PASS` | tmux 可用 |
-| idempotent_session | P0 | `SELF_TEST_PASS` | 重复创建不冲突 |
-| multi_window | - | `SELF_TEST_PASS` | 多窗口 + send-keys |
-| wait_and_exit_code | P0 | `SELF_TEST_PASS` | sentinel 等待 + 退出码=0 |
-| detect_failure_exit_code | P0 | `SELF_TEST_PASS` | 检测命令失败（退出码=1） |
-| full_output_capture | P0 | `SELF_TEST_PASS` | -S -1000 读完整历史 |
-| timeout_abort | P1 | `SELF_TEST_PASS` | Ctrl+C 中止 + shell 恢复 |
-| parallel_coordination | P1 | `SELF_TEST_PASS` | 多窗口并行等待 |
+| Test | Priority | Expected output | Capability verified |
+|------|----------|-----------------|---------------------|
+| tmux_installed | - | `SELF_TEST_PASS` | tmux available |
+| idempotent_session | P0 | `SELF_TEST_PASS` | duplicate creates do not conflict |
+| multi_window | - | `SELF_TEST_PASS` | multi-window + send-keys |
+| wait_and_exit_code | P0 | `SELF_TEST_PASS` | sentinel wait + exit code 0 |
+| detect_failure_exit_code | P0 | `SELF_TEST_PASS` | detect command failure (exit=1) |
+| full_output_capture | P0 | `SELF_TEST_PASS` | `-S -1000` reads full history |
+| timeout_abort | P1 | `SELF_TEST_PASS` | Ctrl+C abort + shell recovery |
+| parallel_coordination | P1 | `SELF_TEST_PASS` | multi-window parallel wait |
 
-### Blind Test（盲测）
+### Blind Test
 
-**场景描述:**
-AI Agent 需要在 tmux 中编译一个项目，等待完成，检查是否成功，失败时提取错误信息。
+**Scenario:**
+The AI agent needs to build a project inside tmux, wait for completion, check success, and extract the error when it fails.
 
-**测试 Prompt:**
+**Test prompt:**
 ```
-你是一个 AI 开发助手。请阅读此 Skill，然后：
-1. 幂等创建名为 "testproj" 的 tmux 会话（如已存在不要重复创建）
-2. 确保有 build 窗口
-3. 在 build 窗口执行 "echo compile-start && sleep 2 && echo compile-done"
-4. 使用 sentinel 模式等待命令完成，获取退出码
-5. 用完整输出捕获（-S -1000）验证 "compile-start" 和 "compile-done" 都在输出中
-6. 再执行一个会失败的命令 "exit 42"（注意别杀了 shell，用 bash -c），
-   验证能检测到非零退出码
-7. 最后清理会话
+You are an AI development assistant. Read this skill, then:
+1. Idempotently create a tmux session named "testproj" (do not duplicate-create if it exists)
+2. Ensure there is a build window
+3. In the build window run "echo compile-start && sleep 2 && echo compile-done"
+4. Use the sentinel pattern to wait for the command to finish and capture the exit code
+5. Use full output capture (-S -1000) to verify both "compile-start" and "compile-done" are in the output
+6. Then run a failing command "exit 42" (use bash -c so the shell is not killed),
+   verify you can detect the non-zero exit code
+7. Finally clean up the session
 ```
 
-**验收标准:**
-- [ ] Agent 使用 `has-session` 幂等创建（不是直接 `new-session`）
-- [ ] Agent 使用 sentinel + 轮询模式等待命令完成（不是 `sleep` 猜时间）
-- [ ] Agent 正确提取退出码并判断成功/失败
-- [ ] Agent 使用 `-S -1000` 或 `-S -` 捕获完整输出
-- [ ] Agent 检测到失败命令的非零退出码
-- [ ] Agent 在完成后清理了测试会话
+**Acceptance criteria:**
+- [ ] The agent idempotently creates via `has-session` (not just `new-session`)
+- [ ] The agent uses sentinel + polling to wait (not `sleep` guesswork)
+- [ ] The agent correctly extracts the exit code and judges success/failure
+- [ ] The agent uses `-S -1000` or `-S -` to capture full output
+- [ ] The agent detects the non-zero exit code of the failing command
+- [ ] The agent cleans up the test session at the end
 
-**常见失败模式:**
-- 使用 `sleep 5` 代替 sentinel 等待 → 不可靠，需要强调 sentinel 模式
-- 直接 `new-session` 不检查 `has-session` → 重复创建报错
-- `capture-pane -p` 不加 `-S` 参数 → 输出不完整
-- 用 `exit 42` 直接在窗口执行导致 shell 退出 → 需要 `bash -c "exit 42"`
+**Common failure modes:**
+- Using `sleep 5` instead of sentinel waiting → unreliable, the sentinel pattern must be enforced
+- Direct `new-session` without checking `has-session` → errors on duplicate create
+- `capture-pane -p` without `-S` → incomplete output
+- Running `exit 42` directly in the window exits the shell → use `bash -c "exit 42"`
 
-## 成功标准
+## Success Criteria
 
-- [ ] tmux 会话幂等创建，包含所有必要窗口
-- [ ] 每个窗口可独立发送和执行命令
-- [ ] 可通过 sentinel 模式等待命令完成并获取退出码
-- [ ] 可通过 `capture-pane -S -1000` 获取完整输出历史
-- [ ] 命令超时时可通过 Ctrl+C 中止并恢复 shell
-- [ ] 多窗口并行命令可协调等待全部完成
-- [ ] 会话在 Agent 重启后仍可复用
+- [ ] tmux session created idempotently with all required windows
+- [ ] Each window can independently receive and run commands
+- [ ] Sentinel pattern reliably waits for command completion and extracts exit codes
+- [ ] `capture-pane -S -1000` can retrieve full output history
+- [ ] On timeout, Ctrl+C can abort and the shell recovers
+- [ ] Parallel commands across multiple windows can be coordinated

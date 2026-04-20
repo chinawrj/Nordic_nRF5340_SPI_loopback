@@ -1,155 +1,155 @@
 ---
 name: "daily-iteration"
-description: "每日迭代工作流 — 计划制定、任务执行、回归验证、进度跟踪"
+description: "Daily iteration workflow — planning, task execution, regression gate, progress tracking"
 ---
 
-# Skill: 每日迭代工作流
+# Skill: Daily Iteration Workflow
 
-## 用途
+## Purpose
 
-定义 AI agent 驱动的每日开发迭代流程，包括计划制定、任务执行、进度验证和日报输出。
+Define the AI-agent-driven daily development iteration, including planning, execution, progress validation, and daily reporting.
 
-**何时使用：**
-- 需要结构化的开发节奏
-- 项目周期超过 1 天
-- 需要跟踪进度和里程碑
+**When to use:**
+- You need a structured development rhythm
+- The project spans more than one day
+- You need to track progress and milestones
 
-**何时不使用：**
-- 一次性小任务
-- 不需要迭代的简单项目
+**When not to use:**
+- A one-off small task
+- A simple project that does not need iteration
 
-## 前置条件
+## Prerequisites
 
-- 项目需求文档已确定（`requirements.md`）
-- 工作流 Agent 已配置
-- 开发环境已就绪
+- Requirements document is in place (`requirements.md`)
+- Workflow agent is configured
+- Development environment is ready
 
-## 操作步骤
+## Procedure
 
-### 1. 每日迭代模型
+### 1. Daily iteration model
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                 每日迭代循环                       │
+│                 daily iteration loop              │
 │                                                  │
 │  ┌──────────┐   ┌──────────┐   ┌──────────┐    │
 │  │ Morning  │──▶│ Execute  │──▶│ Evening  │    │
 │  │ Planning │   │ & Test   │   │ Review   │    │
 │  └──────────┘   └──────────┘   └──────────┘    │
 │       │                              │           │
-│       └──────── 下一天 ◀─────────────┘           │
+│       └────────── next day ◀─────────┘           │
 └─────────────────────────────────────────────────┘
 ```
 
-### 2. Morning Planning（晨会计划）
+### 2. Morning Planning
 
-每日开始时执行：
+At the start of each day:
 
 ```markdown
-## Day N 计划
+## Day N Plan
 
-### 昨日回顾
-- 完成: [列出完成的任务]
-- 未完成: [列出未完成任务及原因]
-- 阻塞: [列出阻塞项]
+### Yesterday recap
+- Completed: [list completed tasks]
+- Unfinished: [list unfinished items with reasons]
+- Blockers: [list blockers]
 
-### 今日目标
-1. [目标1] - 预计耗时
-2. [目标2] - 预计耗时
-3. [目标3] - 预计耗时
+### Today's goals
+1. [Goal 1] - estimated effort
+2. [Goal 2] - estimated effort
+3. [Goal 3] - estimated effort
 
-### 风险与依赖
-- [风险项]
+### Risks and dependencies
+- [risk item]
 
-### 验收检查点
-- [ ] [检查项1]
-- [ ] [检查项2]
+### Acceptance checkpoints
+- [ ] [checkpoint 1]
+- [ ] [checkpoint 2]
 ```
 
-### 3. Execute & Test（执行与测试）
+### 3. Execute & Test
 
-每个任务遵循以下流程：
+Each task follows the flow:
 
 ```
-编写代码 → 编译检查 → 烧录测试 → 串口验证 → Web UI 验证
-    ↑                                            │
-    └────── 修复问题 ◀──────────────────────────┘
+write code → compile check → flash test → serial verify → Web UI verify
+    ↑                                                         │
+    └────── fix issues ◀─────────────────────────────────────┘
 ```
 
-关键规则：
-- 每个任务完成后立即运行测试
-- 测试失败必须在继续下一任务前修复
-- 每完成一个里程碑进行 git commit
+Key rules:
+- Run tests immediately after each task
+- Test failures must be fixed before moving to the next task
+- Git-commit at each milestone
 
-### 3.5 Regression Gate（回归验证）⚠️ 每日必做
+### 3.5 Regression Gate ⚠️ mandatory daily
 
-在 Evening Review 之前，必须运行回归验证，确保新功能没有破坏已完成的功能：
+Before the Evening Review, run the regression check to make sure new work did not break already-completed features:
 
 ```bash
-# 运行验收脚本，覆盖所有已标记 OK 的功能
+# Run the acceptance script to cover every already-signed-off feature
 bash verify-acceptance.sh
 ```
 
-规则：
-- 验证范围随里程碑推进**只增不减**
-- 任何回归失败必须当日修复，不能留到明天
-- 回归通过后才能做 wrap-up commit
+Rules:
+- Verification scope is **monotonically increasing** with milestones
+- Any regression must be fixed the same day — never kicked to tomorrow
+- Only proceed to the wrap-up commit after regression passes
 
-### 4. Evening Review（晚间回顾）
+### 4. Evening Review
 
-每日结束时：
-
-```markdown
-## Day N 回顾
-
-### 完成状态
-| 任务 | 状态 | 备注 |
-|------|------|------|
-| 任务1 | ✅ 完成 | |
-| 任务2 | ⚠️ 部分完成 | 原因: ... |
-| 任务3 | ❌ 未开始 | 阻塞: ... |
-
-### 代码质量
-- 新增代码行数: N
-- 测试通过率: N%
-- 已知问题: [列出]
-
-### 明日计划
-- [优先任务]
-
-### 技术笔记
-- [记录今天学到的关键信息]
-```
-
-### 5. 里程碑检查
-
-每 3-5 天进行一次里程碑评审：
+At the end of each day:
 
 ```markdown
-## 里程碑 M: {{MILESTONE_NAME}}
+## Day N Review
 
-### 目标达成度
-- [x] 子目标1
-- [ ] 子目标2 (进度 70%)
-- [ ] 子目标3 (未开始)
+### Completion status
+| Task | Status | Notes |
+|------|--------|-------|
+| Task 1 | ✅ done | |
+| Task 2 | ⚠️ partial | reason: ... |
+| Task 3 | ❌ not started | blocker: ... |
 
-### 整体进度: N%
+### Code quality
+- New lines of code: N
+- Test pass rate: N%
+- Known issues: [list]
 
-### 是否需要调整计划: 是/否
-### 调整内容: ...
+### Tomorrow's plan
+- [top-priority task]
+
+### Technical notes
+- [record key learnings of the day]
 ```
 
-### 6. 重构窗口
+### 5. Milestone review
 
-每 5 个迭代日安排一次重构：
-- 审查代码复杂度
-- 消除技术债务
-- 优化性能瓶颈
-- 更新文档
+Run a milestone review every 3–5 days:
 
-## 工作日志格式
+```markdown
+## Milestone M: {{MILESTONE_NAME}}
 
-所有日志保存在 `docs/daily-logs/` 目录：
+### Goal completion
+- [x] sub-goal 1
+- [ ] sub-goal 2 (70% progress)
+- [ ] sub-goal 3 (not started)
+
+### Overall progress: N%
+
+### Need to adjust the plan? Yes/No
+### Adjustments: ...
+```
+
+### 6. Refactor window
+
+Schedule a refactor every 5 iteration days:
+- Review code complexity
+- Eliminate technical debt
+- Optimise performance hotspots
+- Update documentation
+
+## Work log format
+
+All logs live under `docs/daily-logs/`:
 
 ```
 docs/daily-logs/
@@ -159,60 +159,59 @@ docs/daily-logs/
 └── milestone-1-review.md
 ```
 
-## Self-Test（自检）
+## Self-Test
 
-> 验证每日迭代工作流的文档生成和跟踪机制。
+> Validate the document generation and tracking mechanism of the daily iteration workflow.
 
-### 自检步骤
+### Self-test steps
 
 ```bash
-# Test 1: docs 目录可创建
+# Test 1: docs directory can be created
 mkdir -p /tmp/__selftest_daily__/docs/daily-logs && \
   echo "SELF_TEST_PASS: docs_dir" || echo "SELF_TEST_FAIL: docs_dir"
 
-# Test 2: Markdown 模板渲染
+# Test 2: Markdown template renders
 cat > /tmp/__selftest_daily__/docs/daily-logs/day-001.md << 'PLAN'
-## Day 1 计划
-### 昨日回顾
-- 完成: 项目初始化
-### 今日目标
-1. [x] 搭建项目框架
-2. [ ] 实现 WiFi 连接
-### 验收检查点
-- [x] 编译通过
+## Day 1 Plan
+### Yesterday recap
+- Completed: project init
+### Today's goals
+1. [x] scaffold the project
+2. [ ] implement WiFi connection
+### Acceptance checkpoints
+- [x] compile passes
 PLAN
 grep -c '\[x\]' /tmp/__selftest_daily__/docs/daily-logs/day-001.md | \
   xargs -I{} bash -c '[ {} -ge 1 ] && echo "SELF_TEST_PASS: plan_format" || echo "SELF_TEST_FAIL: plan_format"'
 
-# Test 3: Git 可用于提交跟踪
+# Test 3: git available for commit tracking
 command -v git &>/dev/null && echo "SELF_TEST_PASS: git_available" || echo "SELF_TEST_FAIL: git_available"
 
 rm -rf /tmp/__selftest_daily__
 ```
 
-### Blind Test（盲测）
+### Blind Test
 
-**测试 Prompt:**
+**Test prompt:**
 ```
-你是一个 AI 开发助手。请阅读此 Skill，然后为一个名为 "test-project" 的项目
-生成 Day 1 的完整工作计划文档，包含：
-- 晨会计划（3 个具体目标）
-- 执行记录模板
-- 晚间回顾模板
-项目目标是"nRF5340 SPI loopback + BLE Heart Rate clean build"。
-输出完整的 Markdown 文档。
+You are an AI development assistant. Read this skill, then for a project named "test-project"
+produce a complete Day 1 working plan document including:
+- Morning plan (3 concrete goals)
+- Execution record template
+- Evening review template
+The project goal is "nRF5340 SPI loopback + BLE Heart Rate clean build".
+Output the complete Markdown document.
 ```
 
-**验收标准:**
-- [ ] Agent 生成了包含所有三个部分的文档
-- [ ] 目标是具体的、可执行的（而非模糊的）
-- [ ] 文档使用了 checkbox 格式
-- [ ] Agent 参考了 Skill 中的模板格式
+**Acceptance criteria:**
+- [ ] The agent produces a document with all three sections
+- [ ] Goals are concrete and actionable (not vague)
+- [ ] The document uses checkbox format
+- [ ] The agent references the template in this skill
 
-## 成功标准
+## Success Criteria
 
-- [ ] 每日计划和回顾文档已生成
-- [ ] 任务执行有对应的测试验证
-- [ ] Git 提交与任务完成同步
-- [ ] 里程碑按时评审
-- [ ] 重构窗口按计划执行
+- [ ] Daily plan and review documents are produced
+- [ ] Task execution has corresponding test verification
+- [ ] Git commits stay aligned with task completion
+- [ ] Milestones are reviewed on schedule

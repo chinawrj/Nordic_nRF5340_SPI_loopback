@@ -1,46 +1,46 @@
 ---
 name: ble-web-bluetooth-debugger
-description: 通过 Patchright 浏览器使用 Web Bluetooth API 调试 BLE 设备。用于连接 BLE Heart Rate Service、读取 GATT 特征值、验证 BLE 广播和 notify 功能。适用于无专用 BLE 工具时通过浏览器验证 BLE Peripheral 是否正常工作。
+description: Debug BLE devices through a Patchright browser using the Web Bluetooth API. Used to connect to the BLE Heart Rate Service, read GATT characteristic values, and verify BLE advertising and notify behaviour. Suitable for verifying a BLE Peripheral through the browser when no dedicated BLE tool is available.
 ---
 
-# Skill: BLE Web Bluetooth 浏览器调试
+# Skill: BLE Web Bluetooth Browser Debugging
 
-## 用途
+## Purpose
 
-通过 Patchright（反检测 Playwright fork）启动 Chrome 浏览器，利用 Web Bluetooth API 连接 BLE 设备，读取 GATT 服务和特征值，验证 BLE Peripheral 功能。
+Launch Chrome through Patchright (an anti-detection Playwright fork) and use the Web Bluetooth API to connect to a BLE device, read its GATT services and characteristics, and validate BLE Peripheral behaviour.
 
-**何时使用：**
-- 需要验证 BLE Peripheral（如 Heart Rate Service）是否正常广播和 notify
-- 没有专用 BLE 调试工具（如 nRF Connect App），但有 Chrome 浏览器
-- 需要自动化 BLE 连接测试流程
-- 需要截图记录 BLE 连接状态作为验收证据
+**When to use:**
+- You need to verify that a BLE Peripheral (e.g. Heart Rate Service) advertises and notifies correctly
+- You do not have a dedicated BLE debugging tool (like the nRF Connect app) but do have Chrome
+- You need to automate the BLE connection test flow
+- You need to capture screenshots of the BLE connection state as acceptance evidence
 
-**何时不使用：**
-- 纯构建验证（不需要实机运行）
-- 有 nRF Connect for Desktop / Mobile 等专用工具
-- 设备没有 BLE 功能
+**When not to use:**
+- Build-only validation (no real-hardware runtime needed)
+- You already have a dedicated tool such as nRF Connect for Desktop / Mobile
+- The device has no BLE functionality
 
-## 前置条件
+## Prerequisites
 
-- Python 虚拟环境：项目根目录 `.venv/`
-- Patchright 已安装：`pip install patchright`
-- 浏览器驱动已安装：`python -m patchright install chromium`
-- **Chrome/Chromium 浏览器**（Web Bluetooth 仅 Chrome 支持）
-- **蓝牙硬件**：运行浏览器的电脑需有蓝牙适配器
-- **BLE 设备已通电并广播**（如 nRF5340 DK 运行 HRS firmware）
+- Python virtualenv: `.venv/` at the project root
+- Patchright installed: `pip install patchright`
+- Browser driver installed: `python -m patchright install chromium`
+- **Chrome/Chromium** (Web Bluetooth is Chrome-only)
+- **Bluetooth hardware**: the host running the browser needs a Bluetooth adapter
+- **The BLE device is powered on and advertising** (e.g. an nRF5340 DK running HRS firmware)
 
-### 环境初始化
+### Environment setup
 
 ```bash
-# 在项目 venv 中安装
+# Install inside the project venv
 source .venv/bin/activate
 pip install patchright
 python -m patchright install chromium
 ```
 
-## 操作步骤
+## Procedure
 
-### 1. 启动浏览器（开启蓝牙权限）
+### 1. Launch the browser (with Bluetooth permission)
 
 ```python
 from patchright.sync_api import sync_playwright
@@ -52,7 +52,7 @@ pw = sync_playwright().start()
 context = pw.chromium.launch_persistent_context(
     user_data_dir=USER_DATA_DIR,
     channel="chrome",
-    headless=False,       # Web Bluetooth 必须可见模式
+    headless=False,       # Web Bluetooth requires a visible browser
     no_viewport=True,
     args=[
         "--remote-debugging-port=9222",
@@ -62,14 +62,14 @@ context = pw.chromium.launch_persistent_context(
     ],
 )
 page = context.pages[0] if context.pages else context.new_page()
-print("浏览器已启动，可使用 Web Bluetooth API")
+print("Browser launched; Web Bluetooth API is available")
 ```
 
-> ⚠️ **Web Bluetooth 限制**: 必须 `headless=False`，且需要用户手势（click）触发蓝牙扫描。自动化时需模拟点击按钮来触发 `navigator.bluetooth.requestDevice()`。
+> ⚠️ **Web Bluetooth limitations**: `headless=False` is mandatory, and a user gesture (click) is required to trigger a Bluetooth scan. In automation you must simulate a button click to trigger `navigator.bluetooth.requestDevice()`.
 
-### 2. 创建 BLE HRS 测试页面
+### 2. Create a BLE HRS test page
 
-创建本地 HTML 页面 `tools/ble-hr-test.html`，用于通过 Web Bluetooth 连接 Heart Rate Service：
+Create a local HTML page `tools/ble-hr-test.html` that connects to the Heart Rate Service via Web Bluetooth:
 
 ```html
 <!DOCTYPE html>
@@ -192,7 +192,7 @@ print("浏览器已启动，可使用 Web Bluetooth API")
 </html>
 ```
 
-### 3. 使用 Patchright 自动化 BLE 测试
+### 3. Automate the BLE test with Patchright
 
 ```python
 import os
@@ -201,12 +201,12 @@ from patchright.sync_api import sync_playwright
 
 def test_ble_hrs(html_path="tools/ble-hr-test.html", timeout=30):
     """
-    自动化 BLE HRS 测试流程：
-    1. 打开测试页面
-    2. 点击 Scan & Connect（触发 Web Bluetooth 弹窗）
-    3. 手动选择设备（Web Bluetooth 要求用户交互）
-    4. 等待心率数据
-    5. 截图记录结果
+    Automate the BLE HRS test flow:
+    1. Open the test page
+    2. Click Scan & Connect (triggers the Web Bluetooth prompt)
+    3. Manually select the device (Web Bluetooth requires user interaction)
+    4. Wait for heart-rate data
+    5. Screenshot the result
     """
     pw = sync_playwright().start()
     context = pw.chromium.launch_persistent_context(
@@ -218,17 +218,17 @@ def test_ble_hrs(html_path="tools/ble-hr-test.html", timeout=30):
     )
     page = context.pages[0] if context.pages else context.new_page()
 
-    # 打开测试页面
+    # Open the test page
     abs_path = os.path.abspath(html_path)
     page.goto(f"file://{abs_path}")
     page.wait_for_load_state("domcontentloaded")
-    print("✅ 测试页面已加载")
+    print("✅ Test page loaded")
 
-    # 点击扫描按钮（触发 Web Bluetooth 弹窗）
+    # Click the scan button (triggers the Web Bluetooth prompt)
     page.click("#btn-scan")
-    print("🔍 已触发 BLE 扫描 — 请在浏览器弹窗中选择 'nRF5340_HR' 设备")
+    print("🔍 BLE scan triggered — select 'nRF5340_HR' in the browser prompt")
 
-    # 等待用户选择设备并连接
+    # Wait for the user to select a device and connect
     try:
         page.wait_for_function(
             """() => {
@@ -238,9 +238,9 @@ def test_ble_hrs(html_path="tools/ble-hr-test.html", timeout=30):
             timeout=timeout * 1000,
         )
     except Exception:
-        print("⏱ 超时 — 未能在规定时间内完成连接")
+        print("⏱ Timed out — connection did not complete within the deadline")
 
-    # 读取状态
+    # Read the status
     status = page.locator("#status").text_content()
     hr_value = page.locator("#hr-value").text_content()
     log_content = page.locator("#log").text_content()
@@ -248,21 +248,21 @@ def test_ble_hrs(html_path="tools/ble-hr-test.html", timeout=30):
     print(f"📊 Status: {status}")
     print(f"💓 HR Value: {hr_value}")
 
-    # 截图
+    # Screenshot
     os.makedirs("reports", exist_ok=True)
     page.screenshot(path="reports/ble-hr-test.png")
-    print("📸 截图已保存: reports/ble-hr-test.png")
+    print("📸 Screenshot saved: reports/ble-hr-test.png")
 
-    # 验证结果
+    # Validate
     connected = "receiving data" in status
     has_hr = hr_value != "-- bpm"
 
     if connected and has_hr:
-        print("✅ BLE HRS 测试通过")
+        print("✅ BLE HRS test passed")
     else:
-        print(f"❌ BLE HRS 测试未通过 (connected={connected}, has_hr={has_hr})")
+        print(f"❌ BLE HRS test failed (connected={connected}, has_hr={has_hr})")
 
-    # 保存日志
+    # Save the log
     with open("reports/ble-hr-log.txt", "w") as f:
         f.write(log_content)
 
@@ -271,28 +271,28 @@ def test_ble_hrs(html_path="tools/ble-hr-test.html", timeout=30):
     return {"connected": connected, "hr_value": hr_value, "log": log_content}
 ```
 
-### 4. 使用第三方 Web BLE 测试工具
+### 4. Use a third-party Web BLE tool
 
-如果不想创建自定义测试页面，可以使用在线工具：
+If you would rather not create a custom test page, you can use an online tool:
 
 ```python
-# 方式 A: 使用 Web Bluetooth 官方心率示例
+# Option A: the official Web Bluetooth heart-rate sample
 page.goto("https://niccolobruno.github.io/web-bluetooth-heart-rate-monitor/")
 
-# 方式 B: 使用 nRF Connect for Web（Nordic 官方）
+# Option B: nRF Connect for Web (Nordic official)
 page.goto("https://nrfconnect.github.io/webbluetooth/")
 
-# 方式 C: 使用通用 Web BLE 扫描工具
+# Option C: a generic Web BLE scanner
 page.goto("https://niccolobruno.github.io/web-bluetooth-devices-scanner/")
 ```
 
-### 5. 半自动化验证流程
+### 5. Semi-automated verification flow
 
-由于 Web Bluetooth 的安全限制（需用户手势选择设备），完全自动化有困难。推荐半自动化流程：
+Because of Web Bluetooth's security restrictions (a user gesture is required to select the device), fully automating it is hard. A semi-automated flow is recommended:
 
 ```python
 def semi_auto_ble_test():
-    """半自动化 BLE 测试 — 自动启动浏览器和页面，手动选择设备"""
+    """Semi-automated BLE test — auto-launch browser and page, manually pick the device"""
     pw = sync_playwright().start()
     context = pw.chromium.launch_persistent_context(
         user_data_dir=os.path.expanduser("~/.patchright-userdata/ble-debug"),
@@ -302,72 +302,72 @@ def semi_auto_ble_test():
     )
     page = context.pages[0] if context.pages else context.new_page()
 
-    # 步骤 1: 自动 — 打开测试页面
+    # Step 1: auto — open the test page
     page.goto(f"file://{os.path.abspath('tools/ble-hr-test.html')}")
-    print("Step 1: ✅ 测试页面已打开")
+    print("Step 1: ✅ test page opened")
 
-    # 步骤 2: 自动 — 点击扫描按钮
+    # Step 2: auto — click the scan button
     page.click("#btn-scan")
-    print("Step 2: ✅ 已点击扫描按钮")
-    print("Step 3: ⏳ 请在弹窗中选择 'nRF5340_HR' 设备...")
+    print("Step 2: ✅ scan button clicked")
+    print("Step 3: ⏳ please select 'nRF5340_HR' in the prompt...")
 
-    # 步骤 3: 手动 — 用户在弹窗中选择设备
+    # Step 3: manual — user selects the device in the prompt
     page.wait_for_function(
         "() => document.getElementById('status').textContent.includes('receiving')",
         timeout=60000,
     )
-    print("Step 4: ✅ BLE 连接成功")
+    print("Step 4: ✅ BLE connected")
 
-    # 步骤 4: 自动 — 等待收集数据
+    # Step 4: auto — wait for data to accumulate
     import time
     time.sleep(10)
 
-    # 步骤 5: 自动 — 验证并截图
+    # Step 5: auto — validate and screenshot
     hr_value = page.locator("#hr-value").text_content()
-    assert hr_value != "-- bpm", f"未收到心率数据: {hr_value}"
-    print(f"Step 5: ✅ 收到心率数据: {hr_value}")
+    assert hr_value != "-- bpm", f"no heart-rate data received: {hr_value}"
+    print(f"Step 5: ✅ heart-rate data received: {hr_value}")
 
     page.screenshot(path="reports/ble-hr-connected.png")
-    print("Step 6: ✅ 截图已保存")
+    print("Step 6: ✅ screenshot saved")
 
     context.close()
     pw.stop()
-    print("\n🎉 BLE HRS 半自动化测试通过!")
+    print("\n🎉 BLE HRS semi-automated test passed!")
 ```
 
-## 注意事项
+## Notes
 
-- **必须使用 Patchright** 而非 Playwright
-- **必须使用 `launch_persistent_context`**（持久化上下文）
-- **必须 `headless=False`** — Web Bluetooth 不支持无头模式
-- **Web Bluetooth 设备选择弹窗需手动操作** — 这是 Chrome 安全策略，无法完全自动化
-- 不要设置自定义 user_agent
-- CDP 端口默认 9222，确保不冲突
-- **macOS**: 需在系统设置中授权 Chrome 蓝牙权限
-- **Linux**: 确保 `bluetoothd` 服务运行，用户在 `bluetooth` 组中
-- **Windows**: 需 Windows 10+ 并启用蓝牙
+- **Must use Patchright** rather than Playwright
+- **Must use `launch_persistent_context`** (persistent context)
+- **Must set `headless=False`** — Web Bluetooth does not support headless mode
+- **The Web Bluetooth device-selection prompt requires manual action** — this is Chrome's security policy, full automation is impossible
+- Do not set a custom `user_agent`
+- The CDP port defaults to 9222; make sure it does not conflict
+- **macOS**: grant Bluetooth permission to Chrome in System Settings
+- **Linux**: ensure `bluetoothd` is running and the user is in the `bluetooth` group
+- **Windows**: requires Windows 10+ with Bluetooth enabled
 
-## Self-Test（自检）
+## Self-Test
 
-> 验证 Patchright 安装和浏览器启动能力（不需要 BLE 硬件）。
+> Validate that Patchright is installed and the browser can launch (no BLE hardware required).
 
-### 自检步骤
+### Self-test steps
 
 ```bash
-# 在项目 venv 中执行
+# Run inside the project venv
 source .venv/bin/activate
 
-# Test 1: Patchright 可导入
+# Test 1: Patchright importable
 python3 -c "from patchright.sync_api import sync_playwright; print('SELF_TEST_PASS: patchright_import')" 2>/dev/null || echo "SELF_TEST_FAIL: patchright_import"
 
-# Test 2: 浏览器驱动存在
+# Test 2: Browser driver present
 python3 -c "
 import subprocess
 result = subprocess.run(['python3', '-m', 'patchright', 'install', '--dry-run', 'chromium'], capture_output=True, text=True)
 print('SELF_TEST_PASS: chromium_driver')
 " 2>/dev/null || echo "SELF_TEST_FAIL: chromium_driver"
 
-# Test 3: 可启动浏览器（可见模式）
+# Test 3: Can launch the browser (visible mode)
 python3 -c "
 from patchright.sync_api import sync_playwright
 import os
@@ -386,7 +386,7 @@ pw.stop()
 print('SELF_TEST_PASS: browser_launch')
 " 2>/dev/null || echo "SELF_TEST_FAIL: browser_launch"
 
-# Test 4: Web Bluetooth API 存在（浏览器端检查）
+# Test 4: Web Bluetooth API is available (browser-side check)
 python3 -c "
 from patchright.sync_api import sync_playwright
 import os
@@ -408,50 +408,49 @@ else:
 " 2>/dev/null || echo "SELF_TEST_FAIL: web_bluetooth_api"
 ```
 
-### 预期结果
+### Expected results
 
-| 测试项 | 预期输出 | 失败影响 |
-|--------|---------|----------|
-| patchright_import | `SELF_TEST_PASS` | 浏览器功能完全不可用 |
-| chromium_driver | `SELF_TEST_PASS` | 无法启动浏览器 |
-| browser_launch | `SELF_TEST_PASS` | 浏览器自动化失败 |
-| web_bluetooth_api | `SELF_TEST_PASS` | BLE 调试不可用（可能 Chrome 版本过低） |
+| Test | Expected output | Failure impact |
+|------|-----------------|----------------|
+| patchright_import | `SELF_TEST_PASS` | Browser functionality completely unavailable |
+| chromium_driver | `SELF_TEST_PASS` | Cannot launch the browser |
+| browser_launch | `SELF_TEST_PASS` | Browser automation fails |
+| web_bluetooth_api | `SELF_TEST_PASS` | BLE debugging unavailable (Chrome may be too old) |
 
-## Blind Test（盲测）
+## Blind Test
 
-**测试 Prompt:**
+**Test prompt:**
 ```
-你是一个 AI 开发助手。请阅读此 Skill，然后：
-1. 启动 Patchright 浏览器（可见模式，headless=False）
-2. 创建一个本地 HTML 文件，模拟 BLE Heart Rate Monitor 页面
-   - 包含一个 "Scan" 按钮
-   - 包含心率显示区域
-   - 包含日志输出区域
-3. 在浏览器中打开该页面
-4. 验证 navigator.bluetooth API 是否可用
-5. 截图保存到 reports/ble-test.png
-6. 关闭浏览器
-报告每个步骤的结果。
+You are an AI development assistant. Read this skill, then:
+1. Launch the Patchright browser (visible mode, headless=False)
+2. Create a local HTML file that simulates a BLE Heart Rate Monitor page
+   - Include a "Scan" button
+   - Include a heart-rate display area
+   - Include a log output area
+3. Open the page in the browser
+4. Verify that the navigator.bluetooth API is available
+5. Save a screenshot to reports/ble-test.png
+6. Close the browser
+Report the result of each step.
 ```
 
-**验收标准:**
-- [ ] Agent 使用 Patchright（而非 Playwright）
-- [ ] Agent 使用 `launch_persistent_context`（而非 `launch`）
-- [ ] Agent 设置 `headless=False`
-- [ ] Agent 正确创建了 BLE 测试 HTML 页面
-- [ ] Agent 检查了 Web Bluetooth API 可用性
-- [ ] Agent 没有设置自定义 user_agent
+**Acceptance criteria:**
+- [ ] The agent uses Patchright (not Playwright)
+- [ ] The agent uses `launch_persistent_context` (not `launch`)
+- [ ] The agent sets `headless=False`
+- [ ] The agent correctly creates the BLE test HTML page
+- [ ] The agent checks Web Bluetooth API availability
+- [ ] The agent does not set a custom user_agent
 
-**常见失败模式:**
-- Agent 使用 `playwright` 而非 `patchright`
-- Agent 使用 `headless=True`（Web Bluetooth 不支持）
-- Agent 使用 `browser.launch()` 而非 `launch_persistent_context`
+**Common failure modes:**
+- The agent uses `playwright` instead of `patchright`
+- The agent uses `headless=True` (unsupported for Web Bluetooth)
+- The agent uses `browser.launch()` instead of `launch_persistent_context`
 
-## 成功标准
+## Success Criteria
 
-- [ ] Patchright 浏览器可启动（可见模式）
-- [ ] Web Bluetooth API 可用
-- [ ] BLE 测试 HTML 页面可加载
-- [ ] 能触发 BLE 扫描（弹出设备选择框）
-- [ ] 连接后能接收 Heart Rate notify 数据
-- [ ] 能截图记录测试结果
+- [ ] The Patchright browser launches (in visible mode)
+- [ ] The Web Bluetooth API is available
+- [ ] The BLE test HTML page loads
+- [ ] A BLE scan can be triggered (device-selection prompt appears)
+- [ ] After connection, Heart Rate notifications can be received
