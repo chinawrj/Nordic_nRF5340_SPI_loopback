@@ -1,0 +1,13 @@
+# App core RAM report
+# Date: 2026-04-20 06:57 UTC
+# Board: nrf5340dk/nrf5340/cpuapp
+# Source: west build -t ram_report
+
+Top-level breakdown (depth 1):
+Root                                                                                            33548 100.00%  - 
+├── (hidden)                                                                                       70   0.21%  - 
+├── (no paths)                                                                                   4745  14.14%  - 
+├── WORKSPACE                                                                                    5496  16.38%  - 
+└── ZEPHYR_BASE                                                                                 23237  69.26%  - 
+
+TOTAL RAM (bss+data): 33548 bytes

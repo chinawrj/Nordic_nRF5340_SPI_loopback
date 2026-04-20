@@ -1,0 +1,29 @@
+# App core ROM report
+# Date: 2026-04-20 06:57 UTC
+# Board: nrf5340dk/nrf5340/cpuapp
+# Source: west build -t rom_report (Zephyr footprint size_report)
+
+Top-level breakdown (depth 1):
+Root                                                                                           126452 100.00%  - 
+├── (hidden)                                                                                    20804  16.45%  - 
+├── (no paths)                                                                                   4457   3.52%  - 
+├── OUTPUT_DIR                                                                                    422   0.33%  - 
+├── WORKSPACE                                                                                   18830  14.89%  - 
+└── ZEPHYR_BASE                                                                                 81939  64.80%  - 
+
+TOTAL ROM (text+rodata+data): 126452 bytes
+
+=== Linker memory-region summary (from west build output) ===
+[239/239] Linking C executable zephyr/zephyr.elf
+Memory region         Used Size  Region Size  %age Used
+           FLASH:      126480 B         1 MB     12.06%
+             RAM:       33000 B       448 KB      7.19%
+        IDT_LIST:          0 GB        32 KB      0.00%
+Generating files from /Users/rjwang/fun/Nordic_nRF5340_SPI_loopback/build/Nordic_nRF5340_SPI_loopback/zephyr/zephyr.elf for board: nrf5340dk
+--
+[204/204] Linking C executable zephyr/zephyr.elf
+Memory region         Used Size  Region Size  %age Used
+           FLASH:      168880 B       256 KB     64.42%
+             RAM:       46560 B        64 KB     71.04%
+           SRAM1:          0 GB        64 KB      0.00%
+        IDT_LIST:          0 GB        32 KB      0.00%

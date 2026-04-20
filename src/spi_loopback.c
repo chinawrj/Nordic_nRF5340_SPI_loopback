@@ -34,7 +34,7 @@ static const struct spi_config spi_cfg = {
 	.frequency = SPI_FREQ_HZ,
 	.operation = SPI_OP_MODE_MASTER | SPI_TRANSFER_MSB | SPI_WORD_SET(8),
 	.slave     = 0,
-	.cs        = {0},
+	/* .cs left zero-initialized: no CS line is driven in wire loopback. */
 };
 
 static K_THREAD_STACK_DEFINE(spi_stack, 1536);
