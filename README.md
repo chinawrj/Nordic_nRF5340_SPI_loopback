@@ -3,7 +3,8 @@
 [![CI](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml)
 
 > **Status**: ✅ Clean `west build --sysbuild` passes on NCS **v2.9.0**.
-> 23/23 P0 acceptance checks green. Zero compiler warnings (`-Werror`).
+> 23/23 P0+P1 acceptance checks green (24/24 with the optional `nrf5340bsim`
+> P2 check). Zero compiler warnings (`-Werror`).
 
 Interview technical task for Nordic Semiconductor: implement a 32 MHz SPIM4
 loopback self-test and a BLE Heart Rate peripheral on the nRF5340 DK, using
@@ -56,6 +57,15 @@ nrfutil toolchain-manager install --ncs-version v2.9.0
 nrfutil toolchain-manager env --ncs-version v2.9.0 --as-script > /tmp/ncs_env.sh
 source /tmp/ncs_env.sh
 ```
+
+> **Ubuntu 24.04 note**: sourcing the env script puts NCS's bundled `libcurl`
+> on `LD_LIBRARY_PATH`, which depends on `libunistring.so.2` (noble only ships
+> `.so.5`) and breaks system `git` and `cmake`. Either keep the env confined
+> to NCS commands by running them through the toolchain-manager sandbox \u2014
+> `nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- <cmd>`
+> \u2014 or unset `LD_LIBRARY_PATH` before invoking system tools. See
+> [docs/migration-handoff.md](docs/migration-handoff.md) \u00a75 for the full
+> gotcha list.
 
 ### Workspace bootstrap
 
@@ -113,6 +123,56 @@ bash verify-acceptance.sh
 west flash
 ```
 
+### Building for BabbleSim (optional, P2 / AC-R2)
+
+The project also compiles for the **`nrf5340bsim/nrf5340/cpuapp`** virtual
+board, which produces a native-Linux executable (`zephyr.exe`) running the
+full BLE host stack on top of [BabbleSim](https://babblesim.github.io/). This
+is optional and is **not required** for the P0 acceptance criteria — the
+physical-DK build is the authoritative deliverable. The bsim build is a P2
+bonus check (AC-R2) that proves the BLE code path is hardware-independent.
+
+The SPIM4 module is guarded with a Devicetree `DT_NODE_EXISTS` /
+`DT_NODE_HAS_STATUS` check (`src/spi_loopback.c`), so on the bsim board the
+SPI thread compiles to a `LOG_WRN` stub and the BLE peripheral is exercised
+in isolation. The DK build is unchanged.
+
+Linux-only prerequisites:
+
+```bash
+# 1. System packages required by BabbleSim (Ubuntu 22.04 / 24.04)
+sudo apt-get install -y libfftw3-dev libpcap-dev
+
+# 2. Get BabbleSim. Doing a full `west update` after enabling the
+#    +babblesim group filter re-fetches every imported NCS project
+#    (including ~800 MB of sdk-connectedhomeip), which is unnecessary
+#    here. Instead, shallow-clone the 11 bsim components directly at
+#    the SHAs pinned by NCS v2.9.0's west.yml — see
+#    docs/daily-logs/day-007.md for the exact script.
+
+cd ~/bsim                          # tools/bsim checkout root
+make everything                    # ext_libCryptov1 fails on noble
+                                   # (openssl 1.0.2g vs gcc-13) but is
+                                   # not used by the BLE simulation —
+                                   # `make` continues past it.
+
+export BSIM_OUT_PATH=~/bsim
+export BSIM_COMPONENTS_PATH=~/bsim/components
+```
+
+Build and verify:
+
+```bash
+cd ~/ncs-ws/Nordic_nRF5340_SPI_loopback
+west build -b nrf5340bsim/nrf5340/cpuapp --build-dir build-bsim
+ls build-bsim/Nordic_nRF5340_SPI_loopback/zephyr/zephyr.exe
+```
+
+`verify-acceptance.sh` automatically runs the AC-R2 check **only when** both
+`BSIM_OUT_PATH` and `BSIM_COMPONENTS_PATH` are exported and point to existing
+directories; otherwise it is silently skipped, so the harness still reports
+23/23 in environments without BabbleSim installed.
+
 ---
 
 ## Project layout
@@ -154,6 +214,7 @@ status on NCS v2.9.0:
 | AC-B4 | Sysbuild multi-image (app + ipc_radio) | ✅ |
 | AC-B7 | `rm -rf build && west build` reproducibly green | ✅ |
 | AC-Q1 | Zero compiler warnings with `-Werror` | ✅ |
+| AC-R2 | `nrf5340bsim/nrf5340/cpuapp` compiles, `zephyr.exe` produced | ✅ (P2, optional) |
 
 ---
 
