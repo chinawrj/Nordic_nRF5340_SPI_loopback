@@ -26,19 +26,24 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
-              git cmake ninja-build gperf ccache dfu-util device-tree-compiler \
-              wget xz-utils file make gcc gcc-multilib g++-multilib libsdl2-dev \
-              libmagic1 python3-pip python3-venv python3-dev
+              git curl cmake ninja-build gperf ccache dfu-util device-tree-compiler \
+              wget xz-utils file make gcc libsdl2-dev \
+              python3-pip python3-venv python3-dev
+          # Note: skip gcc-multilib/g++-multilib (flaky on Ubuntu 24.04 mirrors,
+          # only needed for bsim/native_sim). Skip libmagic1 (libmagic1t64 on
+          # noble; pulled automatically as transitive dependency when needed).
 
       - name: Install west + nrfutil toolchain-manager
         run: |
           python3 -m pip install --user --upgrade pip
           python3 -m pip install --user west
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          # nrfutil binary for linux-amd64
+          # nrfutil binary for x86_64 Linux. Nordic renamed the URL path in
+          # 2025: legacy "linux-amd64" returns a 404 JSON body that bash tries
+          # to execute as a script. Use -f so curl exits non-zero on HTTP 404.
           mkdir -p "$HOME/.local/bin"
-          curl -sL -o "$HOME/.local/bin/nrfutil" \
-              https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/linux-amd64/nrfutil
+          curl -fsSL -o "$HOME/.local/bin/nrfutil" \
+              https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/x86_64-unknown-linux-gnu/nrfutil
           chmod +x "$HOME/.local/bin/nrfutil"
           "$HOME/.local/bin/nrfutil" --version
           "$HOME/.local/bin/nrfutil" install toolchain-manager
@@ -49,8 +54,9 @@ jobs:
         with:
           path: |
             ~/.local/share/nrfutil
-            /opt/nordic/ncs/toolchains
-          key: ncs-toolchain-v2.9.0-${{ runner.os }}
+            ~/.nrfutil
+            ~/ncs/toolchains
+          key: ncs-toolchain-v2.9.0-${{ runner.os }}-v2
 
       - name: Install NCS v2.9.0 toolchain (if not cached)
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
@@ -59,13 +65,15 @@ jobs:
       - name: Export NCS env
         run: |
           nrfutil toolchain-manager env --ncs-version v2.9.0 --as-script > ncs_env.sh
-          # propagate the NCS env (PATH, ZEPHYR_SDK_INSTALL_DIR, ...) into
-          # every subsequent step
+          # propagate the NCS env (PATH, LD_LIBRARY_PATH, PYTHONPATH,
+          # ZEPHYR_SDK_INSTALL_DIR, ...) into every subsequent step.
+          # Include LD_LIBRARY_PATH + PYTHON* because NCS's bundled python
+          # (3.12) and libcurl need them at runtime.
           set -a
           # shellcheck disable=SC1091
           . ./ncs_env.sh
           set +a
-          env | grep -E '^(PATH|ZEPHYR|GNUARMEMB|ZEPHYR_TOOLCHAIN_VARIANT|ZEPHYR_SDK_INSTALL_DIR)=' \
+          env | grep -E '^(PATH|LD_LIBRARY_PATH|PYTHONPATH|PYTHONHOME|ZEPHYR|ZEPHYR_TOOLCHAIN_VARIANT|ZEPHYR_SDK_INSTALL_DIR)=' \
               >> "$GITHUB_ENV"
 
       - name: Cache west modules (NCS checkout)

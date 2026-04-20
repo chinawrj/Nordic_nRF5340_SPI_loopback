@@ -20,47 +20,52 @@
 | GitHub 仓库 | `chinawrj/Nordic_nRF5340_SPI_loopback`（已 push 到 `origin/main`）|
 | 面试官邀请 | ⏳ 待办，Linux 验证 + P2 加分项完成后再发 |
 
-最近一次 commit: `feat: P0/P1 acceptance harness, footprint reports, Werror clean, README polish` (`77ed705`, Day 3)
-— Day 4 将追加 CI + sample.yaml + 本文档。
+最近一次 commit: `feat: Linux cross-platform regression — 23/23 PASS on Ubuntu 24.04` (`2ed96fa`, Day 5)
+— Day 5 在 Ubuntu 24.04 上完成跨平台首验；Day 6 更新本文档把 Linux 踩坑经验固化。
 
 ---
 
-## 2. Linux 机器上的 bootstrap 清单（30 min）
+## 2. Linux 机器上的 bootstrap 清单（30–45 min，Ubuntu 22.04 / 24.04 实测）
 
-假设 Ubuntu 22.04+。
+> ⚠️ **Ubuntu 24.04 (noble) 注意事项**: `libmagic1` 已改名 `libmagic1t64`（apt 会自动解析）；`gcc-multilib` / `g++-multilib` 在 security 镜像常 404（安装失败可忽略 —— 仅 bsim/native_sim 需要 `-m32`，ARM target 用不到）。
 
 ```bash
-# [1] 安装 system prereqs（Zephyr 官方列表）
+# [1] 安装 system prereqs
 sudo apt-get update && sudo apt-get install -y --no-install-recommends \
     git cmake ninja-build gperf ccache dfu-util device-tree-compiler \
-    wget python3-pip python3-venv python3-dev xz-utils file make \
-    gcc gcc-multilib g++-multilib libsdl2-dev libmagic1
+    wget curl python3-pip python3-venv python3-dev xz-utils file make \
+    libsdl2-dev
+# 可选（仅 bsim/native_sim 需要）:
+#   sudo apt-get install -y gcc-multilib g++-multilib
 
-# [2] 装 nrfutil
-mkdir -p ~/.local/bin && curl -sL -o ~/.local/bin/nrfutil \
-    https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/linux-amd64/nrfutil
+# [2] 装 nrfutil（URL 路径 2025 后已变 — 旧的 linux-amd64 路径返回 404）
+mkdir -p ~/.local/bin && curl -fsSL -o ~/.local/bin/nrfutil \
+    https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/x86_64-unknown-linux-gnu/nrfutil
 chmod +x ~/.local/bin/nrfutil
 export PATH="$HOME/.local/bin:$PATH"
+nrfutil --version    # 期望: nrfutil 8.x
 
-# [3] 装 NCS v2.9.0 toolchain（~1.5 GB，5-10 min）
+# [3] 装 NCS v2.9.0 toolchain（~5 GB，5-10 min）
 nrfutil install toolchain-manager
 nrfutil toolchain-manager install --ncs-version v2.9.0
+nrfutil toolchain-manager list    # 应显示 * v2.9.0
 
-# [4] 加载 NCS env
-nrfutil toolchain-manager env --ncs-version v2.9.0 --as-script > /tmp/ncs_env.sh
-source /tmp/ncs_env.sh
-
-# [5] 克隆 + 初始化 workspace
+# [4] 克隆 + 初始化 workspace
+#     约定: workspace topdir 里的 app 仓库名为 `Nordic_nRF5340_SPI_loopback`；
+#     nrf/zephyr/nrfxlib/... 会作为它的 siblings 落地
 mkdir -p ~/ncs-ws && cd ~/ncs-ws
 git clone git@github.com:chinawrj/Nordic_nRF5340_SPI_loopback.git
-west init -l Nordic_nRF5340_SPI_loopback
-west update              # 5-20 min
-west zephyr-export
 
-# [6] 构建验证
+# [5] 所有后续 west 命令都放进 nrfutil launch sandbox（见 §4 坑位 2）
+alias nw='nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell --'
+nw west init -l Nordic_nRF5340_SPI_loopback
+nw west update --narrow -o=--depth=1    # 5-20 min；中断可直接再跑一次接着续
+nw west zephyr-export
+
+# [6] 构建 + 验证
 cd Nordic_nRF5340_SPI_loopback
-west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
-bash verify-acceptance.sh        # 期望：23/23 PASS
+nw west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
+nw bash verify-acceptance.sh            # 期望: 23/23 PASS
 ```
 
 ---
@@ -107,19 +112,22 @@ zephyr/scripts/twister -T Nordic_nRF5340_SPI_loopback \
 
 ## 4. 跨平台差异快查
 
-| 项 | macOS (Day 1–4) | Linux (Day 5+) |
-|---|----------------|----------------|
-| nrfutil 安装 | `brew install nrfutil` | 从 files.nordicsemi.com 下载 `linux-amd64` 二进制 |
-| 工具链装路径 | `/opt/nordic/ncs/toolchains/<hash>/` | 同上 |
-| `nrfutil env --as-script` 展开 | **不要用 `eval "$(...)"`**（zsh 会进 `dquote>`），改写文件再 source | bash 下 `eval` 也可行，但写文件更稳 |
-| bsim 支持 | ❌ 无（BabbleSim Linux-only） | ✅ |
+| 项 | macOS (Day 1–4) | Linux / Ubuntu 24.04 (Day 5+) |
+|---|----------------|------------------------------|
+| nrfutil 安装 | `brew install nrfutil` | `curl ...x86_64-unknown-linux-gnu/nrfutil`（**旧路径 `linux-amd64` 已 404**） |
+| 工具链装路径 | `/opt/nordic/ncs/toolchains/<hash>/` | `~/ncs/toolchains/<hash>/`（~5 GB） |
+| `nrfutil env --as-script` + source | zsh 需写文件再 source（`eval` 进 `dquote>`） | **不推荐直接 source**：`LD_LIBRARY_PATH` 会污染系统 git/cmake（见坑 2）；推荐用 `nrfutil toolchain-manager launch --shell --` sandbox |
+| bsim 支持 | ❌ 无（BabbleSim Linux-only） | ✅（需单独装 BabbleSim） |
 | `native_sim` 目标 | 有限（nrf5340 模型不全） | 推荐路径 |
+| apt 包名（Ubuntu 24.04 vs 22.04） | — | `libmagic1` → `libmagic1t64`；`gcc-multilib` 常 404（可跳过） |
 
 ---
 
-## 5. 已知坑（Day 1–4 总结）
+## 5. 已知坑（Day 1–5 累积总结）
 
 已全部修复并提交，但 Linux 上若出任何回归，先查这几处：
+
+### Day 1–4（应用层与 Zephyr API 相关）
 
 1. **sdk-nrf 路径必须叫 `nrf`** — `west.yml` 里 `path: nrf`，否则 NCS 硬编码 `${ZEPHYR_BASE}/../nrf/...` 会全线失败。
 2. **`BT_LE_ADV_CONN_FAST_1` 是 Zephyr 4.x 宏** — NCS v2.9.0 = Zephyr v3.7.99-ncs2，用 `BT_LE_ADV_CONN`。
@@ -127,6 +135,13 @@ zephyr/scripts/twister -T Nordic_nRF5340_SPI_loopback \
 4. **`.cs = {0}` 触发 `-Werror=missing-braces`** — 直接省略，C99 会零初始化。
 5. **`CONFIG_BT_HCI_IPC` 不是用户可配置** — board defconfig 通过 `chosen zephyr,bt-hci` 自动 select，勿在 prj.conf 硬写。
 6. **`rom_report`/`ram_report` 必须 per-image** — sysbuild 根 dir 跑会报 unknown target，用 `-d build/Nordic_nRF5340_SPI_loopback -t rom_report`。
+
+### Day 5（Linux / Ubuntu 24.04 环境相关）
+
+7. **nrfutil 下载 URL 路径已变** — 旧 `.../executables/linux-amd64/nrfutil` 返回 404；新路径 `.../executables/x86_64-unknown-linux-gnu/nrfutil`。macOS 同步变成 `aarch64-apple-darwin` / `x86_64-apple-darwin`。
+8. **`LD_LIBRARY_PATH` 污染系统 git/cmake（Ubuntu 24.04）** — `source /tmp/ncs_env.sh` 后，NCS 的 libcurl 链接了 `libunistring.so.2`，而 noble 只提供 `libunistring.so.5` → `git-remote-https` 启动失败；同时系统 cmake 在 NCS LD_LIBRARY_PATH 下 exit 127。**惯用法**：改用 `nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- <cmd>` sandbox（自动隔离 env + 正确加载依赖）。若坚持手动：`unset LD_LIBRARY_PATH GIT_EXEC_PATH GIT_TEMPLATE_DIR` 后再跑 git。
+9. **Per-board overlay 约定** — 顶层 `app.overlay` 对所有 board 生效；bsim/native_sim 无 `&spi4` label 时会 DTS parse fail。硬件专属节点（spi/uart/gpio）一律放 `boards/<board>.overlay`（如 `boards/nrf5340dk_nrf5340_cpuapp.overlay`），Zephyr 只在匹配 board 时 apply。
+10. **bsim board 需要 BabbleSim 环境** — 仅装 NCS toolchain **不够** 跑 `west build -b nrf5340bsim/...`；必须额外 `git clone babble_sim.github.io && make everything` 并 `export BSIM_OUT_PATH` + `BSIM_COMPONENTS_PATH`。AC-R2 冒烟不含此步则 CMake 会在 `find_package(bsim)` 报错。
 
 ---
 
