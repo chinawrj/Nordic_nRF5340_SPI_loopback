@@ -32,6 +32,12 @@ jobs:
           # Note: skip gcc-multilib/g++-multilib (flaky on Ubuntu 24.04 mirrors,
           # only needed for bsim/native_sim). Skip libmagic1 (libmagic1t64 on
           # noble; pulled automatically as transitive dependency when needed).
+          # Compat shim: NCS bundled git links against libunistring.so.2, but
+          # Ubuntu 24.04 (noble) only provides libunistring.so.5. ABI is
+          # compatible for git's usage, so symlink it. Without this, every
+          # `west update` fails with git-remote-https: libunistring.so.2
+          # not found.
+          sudo ln -sf libunistring.so.5 /usr/lib/x86_64-linux-gnu/libunistring.so.2
 
       - name: Install west + nrfutil toolchain-manager
         run: |
