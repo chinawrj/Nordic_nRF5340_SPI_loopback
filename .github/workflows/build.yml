@@ -62,19 +62,13 @@ jobs:
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: nrfutil toolchain-manager install --ncs-version v2.9.0
 
-      - name: Export NCS env
-        run: |
-          nrfutil toolchain-manager env --ncs-version v2.9.0 --as-script > ncs_env.sh
-          # propagate the NCS env (PATH, LD_LIBRARY_PATH, PYTHONPATH,
-          # ZEPHYR_SDK_INSTALL_DIR, ...) into every subsequent step.
-          # Include LD_LIBRARY_PATH + PYTHON* because NCS's bundled python
-          # (3.12) and libcurl need them at runtime.
-          set -a
-          # shellcheck disable=SC1091
-          . ./ncs_env.sh
-          set +a
-          env | grep -E '^(PATH|LD_LIBRARY_PATH|PYTHONPATH|PYTHONHOME|ZEPHYR|ZEPHYR_TOOLCHAIN_VARIANT|ZEPHYR_SDK_INSTALL_DIR)=' \
-              >> "$GITHUB_ENV"
+      # Rationale for NOT sourcing `nrfutil env --as-script` directly into
+      # GITHUB_ENV: the NCS bundled git needs its own libexec/git-core on
+      # PATH AND unpolluted LD_LIBRARY_PATH; partial env propagation breaks
+      # git-remote-https with "is not a git command". The cleanest fix
+      # (verified Day 5 locally on Ubuntu 24.04) is to run every NCS
+      # subcommand through `nrfutil toolchain-manager launch --shell --`,
+      # which gives each command a fully-isolated, correctly-prepared env.
 
       - name: Cache west modules (NCS checkout)
         id: cache-modules
@@ -94,30 +88,39 @@ jobs:
       - name: west init + update (if not cached)
         if: steps.cache-modules.outputs.cache-hit != 'true'
         run: |
-          west init -l Nordic_nRF5340_SPI_loopback
-          west update --narrow -o=--depth=1
-          west zephyr-export
+          nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- \
+              west init -l Nordic_nRF5340_SPI_loopback
+          nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- \
+              west update --narrow -o=--depth=1
+          nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- \
+              west zephyr-export
 
       - name: west zephyr-export (cached path)
         if: steps.cache-modules.outputs.cache-hit == 'true'
-        run: west zephyr-export
+        run: |
+          nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- \
+              west zephyr-export
 
       - name: Clean sysbuild (release configuration)
         working-directory: Nordic_nRF5340_SPI_loopback
         run: |
           rm -rf build
-          west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
+          nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- \
+              west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
 
       - name: Strict build (-Werror)
         working-directory: Nordic_nRF5340_SPI_loopback
         run: |
           rm -rf build
-          west build -b nrf5340dk/nrf5340/cpuapp --sysbuild -- \
+          nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- \
+              west build -b nrf5340dk/nrf5340/cpuapp --sysbuild -- \
               -DCONFIG_COMPILER_WARNINGS_AS_ERRORS=y
 
       - name: Run acceptance harness
         working-directory: Nordic_nRF5340_SPI_loopback
-        run: bash verify-acceptance.sh
+        run: |
+          nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- \
+              bash verify-acceptance.sh
 
       - name: Upload merged.hex
         uses: actions/upload-artifact@v4
