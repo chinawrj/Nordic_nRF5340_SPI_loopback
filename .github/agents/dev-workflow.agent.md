@@ -1,7 +1,6 @@
 ---
 description: "nRF5340_SPI_loopback 开发工作流 Agent - 驱动迭代开发，确保 clean build 交付"
 name: "dev-workflow"
-tools: ["edit", "search", "terminalLastCommand", "run"]
 ---
 
 # nRF5340_SPI_loopback 开发工作流 Agent

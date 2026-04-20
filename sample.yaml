@@ -1,0 +1,23 @@
+# Twister / sample metadata for the nRF5340 SPI loopback + BLE HRS app.
+# Enables `twister -T . -p nrf5340dk/nrf5340/cpuapp --build-only` regression.
+sample:
+  name: nRF5340 SPI Loopback + BLE Heart Rate
+  description: >-
+    32 MHz SPIM4 loopback self-test running alongside a BLE Heart Rate
+    peripheral. Dual-core (app + ipc_radio on net core) via sysbuild.
+
+common:
+  sysbuild: true
+  harness: console
+  tags:
+    - nrf5340
+    - bluetooth
+    - spi
+  build_only: true
+
+tests:
+  sample.nrf5340.spi_loopback_ble_hrs:
+    platform_allow:
+      - nrf5340dk/nrf5340/cpuapp
+    integration_platforms:
+      - nrf5340dk/nrf5340/cpuapp

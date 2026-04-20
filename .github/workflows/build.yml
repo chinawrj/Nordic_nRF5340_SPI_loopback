@@ -1,0 +1,119 @@
+name: CI — nRF5340 clean build + acceptance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-verify:
+    name: west build (nrf5340dk/cpuapp, sysbuild) + verify-acceptance.sh
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout manifest repo (this project)
+        uses: actions/checkout@v4
+        with:
+          path: Nordic_nRF5340_SPI_loopback
+
+      # The nordicbuilder base images ship python + west + Zephyr SDK + NCS
+      # toolchain pre-installed, so we don't have to burn 15+ minutes on
+      # `nrfutil toolchain-manager install` every CI run.
+      - name: Install system prerequisites
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+              git cmake ninja-build gperf ccache dfu-util device-tree-compiler \
+              wget xz-utils file make gcc gcc-multilib g++-multilib libsdl2-dev \
+              libmagic1 python3-pip python3-venv python3-dev
+
+      - name: Install west + nrfutil toolchain-manager
+        run: |
+          python3 -m pip install --user --upgrade pip
+          python3 -m pip install --user west
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          # nrfutil binary for linux-amd64
+          mkdir -p "$HOME/.local/bin"
+          curl -sL -o "$HOME/.local/bin/nrfutil" \
+              https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/linux-amd64/nrfutil
+          chmod +x "$HOME/.local/bin/nrfutil"
+          "$HOME/.local/bin/nrfutil" --version
+          "$HOME/.local/bin/nrfutil" install toolchain-manager
+
+      - name: Cache NCS toolchain
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/nrfutil
+            /opt/nordic/ncs/toolchains
+          key: ncs-toolchain-v2.9.0-${{ runner.os }}
+
+      - name: Install NCS v2.9.0 toolchain (if not cached)
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: nrfutil toolchain-manager install --ncs-version v2.9.0
+
+      - name: Export NCS env
+        run: |
+          nrfutil toolchain-manager env --ncs-version v2.9.0 --as-script > ncs_env.sh
+          # propagate the NCS env (PATH, ZEPHYR_SDK_INSTALL_DIR, ...) into
+          # every subsequent step
+          set -a
+          # shellcheck disable=SC1091
+          . ./ncs_env.sh
+          set +a
+          env | grep -E '^(PATH|ZEPHYR|GNUARMEMB|ZEPHYR_TOOLCHAIN_VARIANT|ZEPHYR_SDK_INSTALL_DIR)=' \
+              >> "$GITHUB_ENV"
+
+      - name: Cache west modules (NCS checkout)
+        id: cache-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            nrf
+            zephyr
+            nrfxlib
+            modules
+            bootloader
+            tools
+            test
+            .west
+          key: ncs-modules-v2.9.0-${{ hashFiles('Nordic_nRF5340_SPI_loopback/west.yml') }}
+
+      - name: west init + update (if not cached)
+        if: steps.cache-modules.outputs.cache-hit != 'true'
+        run: |
+          west init -l Nordic_nRF5340_SPI_loopback
+          west update --narrow -o=--depth=1
+          west zephyr-export
+
+      - name: west zephyr-export (cached path)
+        if: steps.cache-modules.outputs.cache-hit == 'true'
+        run: west zephyr-export
+
+      - name: Clean sysbuild (release configuration)
+        working-directory: Nordic_nRF5340_SPI_loopback
+        run: |
+          rm -rf build
+          west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
+
+      - name: Strict build (-Werror)
+        working-directory: Nordic_nRF5340_SPI_loopback
+        run: |
+          rm -rf build
+          west build -b nrf5340dk/nrf5340/cpuapp --sysbuild -- \
+              -DCONFIG_COMPILER_WARNINGS_AS_ERRORS=y
+
+      - name: Run acceptance harness
+        working-directory: Nordic_nRF5340_SPI_loopback
+        run: bash verify-acceptance.sh
+
+      - name: Upload merged.hex
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-hex
+          path: Nordic_nRF5340_SPI_loopback/build/merged.hex
+          if-no-files-found: error

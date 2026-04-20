@@ -1,5 +1,7 @@
 # nRF5340 SPI Loopback + BLE Heart Rate
 
+[![CI](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml)
+
 > **Status**: ✅ Clean `west build --sysbuild` passes on NCS **v2.9.0**.
 > 23/23 P0 acceptance checks green. Zero compiler warnings (`-Werror`).
 
