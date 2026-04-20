@@ -4,6 +4,12 @@
  * SPIM4 32 MHz loopback test — sends a 32-byte incrementing pattern and
  * compares RX vs TX. Runs as an independent cooperative thread so it does
  * not block the BLE host.
+ *
+ * Implementation note:
+ *   `SPI_DT_SPEC_GET` requires a declared child slave node on the bus.
+ *   Our loopback has no real peripheral (MOSI is jumpered to MISO), so we
+ *   grab the bus controller with `DEVICE_DT_GET` and build our own
+ *   `struct spi_config`, reading the 32 MHz frequency from DT.
  */
 
 #include "spi_loopback.h"
@@ -13,16 +19,23 @@
 #include <zephyr/drivers/spi.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <string.h>
 
 LOG_MODULE_REGISTER(spi_loopback, LOG_LEVEL_INF);
 
 #define SPI_NODE        DT_NODELABEL(spi4)
+#define SPI_FREQ_HZ     DT_PROP(SPI_NODE, clock_frequency)
 #define TEST_BUF_LEN    32U
 #define TEST_PERIOD_MS  1000
 
-#define SPI_OP  (SPI_OP_MODE_MASTER | SPI_TRANSFER_MSB | SPI_WORD_SET(8))
+static const struct device *const spi_dev = DEVICE_DT_GET(SPI_NODE);
 
-static const struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_NODE, SPI_OP, 0);
+static const struct spi_config spi_cfg = {
+	.frequency = SPI_FREQ_HZ,
+	.operation = SPI_OP_MODE_MASTER | SPI_TRANSFER_MSB | SPI_WORD_SET(8),
+	.slave     = 0,
+	.cs        = {0},
+};
 
 static K_THREAD_STACK_DEFINE(spi_stack, 1536);
 static struct k_thread spi_thread_data;
@@ -42,7 +55,7 @@ static int run_one_transfer(uint32_t iteration)
 	const struct spi_buf_set tx_set = { .buffers = &tx, .count = 1 };
 	const struct spi_buf_set rx_set = { .buffers = &rx, .count = 1 };
 
-	int ret = spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
+	int ret = spi_transceive(spi_dev, &spi_cfg, &tx_set, &rx_set);
 
 	if (ret != 0) {
 		LOG_ERR("spi_transceive failed: %d", ret);
@@ -56,8 +69,8 @@ static int run_one_transfer(uint32_t iteration)
 		return -EIO;
 	}
 
-	LOG_INF("loopback OK (iter=%u, %u bytes @ 32 MHz)",
-		iteration, TEST_BUF_LEN);
+	LOG_INF("loopback OK (iter=%u, %u bytes @ %u Hz)",
+		iteration, TEST_BUF_LEN, SPI_FREQ_HZ);
 	return 0;
 }
 
@@ -65,13 +78,12 @@ static void spi_loopback_thread(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
 
-	if (!spi_is_ready_dt(&spi_dev)) {
+	if (!device_is_ready(spi_dev)) {
 		LOG_ERR("SPIM4 device not ready");
 		return;
 	}
 
-	LOG_INF("SPIM4 loopback thread started (freq=%u Hz)",
-		spi_dev.config.frequency);
+	LOG_INF("SPIM4 loopback thread started (freq=%u Hz)", SPI_FREQ_HZ);
 
 	uint32_t iter = 0;
 

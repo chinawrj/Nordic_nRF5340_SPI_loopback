@@ -38,7 +38,7 @@ static struct k_thread hr_thread_data;
 
 static void start_advertising(void)
 {
-	int err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1,
+	int err = bt_le_adv_start(BT_LE_ADV_CONN,
 				  ad, ARRAY_SIZE(ad),
 				  sd, ARRAY_SIZE(sd));
 	if (err) {

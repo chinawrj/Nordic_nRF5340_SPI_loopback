@@ -37,5 +37,5 @@
 	pinctrl-1 = <&spi4_sleep>;
 	pinctrl-names = "default", "sleep";
 	clock-frequency = <DT_FREQ_M(32)>;
-	cs-gpios = <>;  /* no CS needed for loopback */
+	/* No cs-gpios: chip-select is not used for a wire loopback test. */
 };

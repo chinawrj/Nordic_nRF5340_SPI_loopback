@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# West manifest — pulls nRF Connect SDK v2.9.0 (and its transitive Zephyr /
+# nrfxlib / mcuboot / etc.) as siblings of this app.
+#
+# Usage:
+#   west init -l <path-to-this-repo>
+#   west update
+#   west build -b nrf5340dk/nrf5340/cpuapp --sysbuild
+#
+manifest:
+  version: "1.2"
+
+  remotes:
+    - name: ncs
+      url-base: https://github.com/nrfconnect
+
+  projects:
+    - name: sdk-nrf
+      remote: ncs
+      repo-path: sdk-nrf
+      path: nrf              # NCS hard-codes ${ZEPHYR_BASE}/../nrf/... in
+                             # several Kconfig / sysbuild files, so the
+                             # workspace path MUST be `nrf`.
+      revision: v2.9.0
+      import: true
+
+  self:
+    path: Nordic_nRF5340_SPI_loopback
+    west-commands: ""
