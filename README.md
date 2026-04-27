@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml)
 
-> **Status**: ✅ Clean `west build --sysbuild` on NCS **v2.9.0**, zero compiler
+> **Status**: ✅ Clean `west build --sysbuild` on NCS **v3.3.0**, zero compiler
 > warnings (`-Werror`). `verify-acceptance.sh` reports **24 / 24 PASS** in
 > this environment (plus optional AC-R2 + AC-V1 when BabbleSim is on PATH,
 > evidence already archived under [reports/](reports/)).
@@ -103,8 +103,8 @@ and `prj.conf` **verbatim**. The only per-image plumbing is:
   turns off `SPI_NRFX` / SEGGER RTT for the POSIX `native_sim` target
 
 **Memory footprint** (app core, cpuapp):
-- FLASH: **126 480 / 1 048 576 B (12.1 %)**
-- RAM: **33 000 / 458 752 B (7.2 %)**
+- FLASH: **144 440 / 1 048 576 B (13.8 %)**
+- RAM: **38 792 / 458 752 B (8.5 %)**
 
 Detailed reports in [docs/reports/](docs/reports/).
 
@@ -124,19 +124,19 @@ but to exercise the loopback on a real DK:
 
 ### Prerequisites (macOS / Linux)
 
-NCS v2.9.0 toolchain via `nrfutil`:
+NCS v3.3.0 toolchain via `nrfutil`:
 
 ```bash
 # 1. Install nrfutil
 brew install nrfutil                             # macOS
 # or: download from https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/
 
-# 2. Install the toolchain-manager subcommand + NCS v2.9.0 toolchain
+# 2. Install the toolchain-manager subcommand + NCS v3.3.0 toolchain
 nrfutil install toolchain-manager
-nrfutil toolchain-manager install --ncs-version v2.9.0
+nrfutil toolchain-manager install --ncs-version v3.3.0
 
 # 3. Load the NCS environment into your shell
-nrfutil toolchain-manager env --ncs-version v2.9.0 --as-script > /tmp/ncs_env.sh
+nrfutil toolchain-manager env --ncs-version v3.3.0 --as-script > /tmp/ncs_env.sh
 source /tmp/ncs_env.sh
 ```
 
@@ -144,7 +144,7 @@ source /tmp/ncs_env.sh
 > on `LD_LIBRARY_PATH`, which depends on `libunistring.so.2` (noble only ships
 > `.so.5`) and breaks system `git` and `cmake`. Either keep the env confined
 > to NCS commands by running them through the toolchain-manager sandbox \u2014
-> `nrfutil toolchain-manager launch --ncs-version v2.9.0 --shell -- <cmd>`
+> `nrfutil toolchain-manager launch --ncs-version v3.3.0 --shell -- <cmd>`
 > \u2014 or unset `LD_LIBRARY_PATH` before invoking system tools. See
 > [docs/migration-handoff.md](docs/migration-handoff.md) \u00a75 for the full
 > gotcha list.
@@ -161,7 +161,7 @@ mkdir -p ~/ncs-ws && cd ~/ncs-ws
 # Clone and bootstrap
 git clone https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback.git
 west init -l Nordic_nRF5340_SPI_loopback
-west update               # ~5-20 min first time; pulls sdk-nrf v2.9.0, zephyr, nrfxlib, ...
+west update               # ~5-20 min first time; pulls sdk-nrf v3.3.0, zephyr v4.3.99-ncs, nrfxlib, ...
 west zephyr-export
 ```
 
@@ -171,7 +171,7 @@ After this the workspace looks like:
 ~/ncs-ws/
 ├── .west/
 ├── Nordic_nRF5340_SPI_loopback/   ← this repo (manifest repo)
-├── nrf/                            ← sdk-nrf v2.9.0
+├── nrf/                            ← sdk-nrf v3.3.0 (Zephyr 4.3.99-ncs)
 ├── zephyr/                         ← Zephyr v3.7.99-ncs2
 ├── nrfxlib/, modules/, bootloader/, tools/, ...
 ```
@@ -229,7 +229,7 @@ sudo apt-get install -y libfftw3-dev libpcap-dev
 #    +babblesim group filter re-fetches every imported NCS project
 #    (including ~800 MB of sdk-connectedhomeip), which is unnecessary
 #    here. Instead, shallow-clone the 11 bsim components directly at
-#    the SHAs pinned by NCS v2.9.0's west.yml — see
+#    the SHAs pinned by NCS v3.3.0's west.yml — see
 #    docs/daily-logs/day-007.md for the exact script.
 
 cd ~/bsim                          # tools/bsim checkout root
@@ -265,7 +265,7 @@ directories; otherwise it is silently skipped, so the harness still reports
 ├── prj.conf                # App Kconfig (SPI + BLE + HRS + DIS)
 ├── sysbuild.conf           # Selects ipc_radio + bt_hci_ipc on net core
 ├── app.overlay             # SPIM4 @32 MHz, pinctrl P1.12/13/14, HIGH drive
-├── west.yml                # Manifest: sdk-nrf v2.9.0 → path `nrf`
+├── west.yml                # Manifest: sdk-nrf v3.3.0 → path `nrf`
 ├── verify-acceptance.sh    # One-shot P0 acceptance harness
 ├── src/
 │   ├── main.c              # Entry — starts BLE + SPI modules
@@ -287,7 +287,7 @@ directories; otherwise it is silently skipped, so the harness still reports
 ## Acceptance criteria
 
 Run `bash verify-acceptance.sh` to execute all P0 checks in one shot. Current
-status on NCS v2.9.0:
+status on NCS v3.3.0:
 
 | Group | Check | Status |
 |-------|-------|--------|

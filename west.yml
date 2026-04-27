@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# West manifest — pulls nRF Connect SDK v2.9.0 (and its transitive Zephyr /
+# West manifest — pulls nRF Connect SDK v3.3.0 (and its transitive Zephyr /
 # nrfxlib / mcuboot / etc.) as siblings of this app.
 #
 # Usage:
@@ -22,7 +22,7 @@ manifest:
       path: nrf              # NCS hard-codes ${ZEPHYR_BASE}/../nrf/... in
                              # several Kconfig / sysbuild files, so the
                              # workspace path MUST be `nrf`.
-      revision: v2.9.0
+      revision: v3.3.0
       import: true
 
   self:
