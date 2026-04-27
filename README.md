@@ -3,9 +3,7 @@
 [![CI](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chinawrj/Nordic_nRF5340_SPI_loopback/actions/workflows/build.yml)
 
 > **Status**: ✅ Clean `west build --sysbuild` on NCS **v3.3.0**, zero compiler
-> warnings (`-Werror`). `verify-acceptance.sh` reports **24 / 24 PASS** in
-> this environment (plus optional AC-R2 + AC-V1 when BabbleSim is on PATH,
-> evidence already archived under [reports/](reports/)).
+> warnings (`-Werror`). `verify-acceptance.sh` reports **24 / 24 PASS**.
 >
 > **Runtime evidence** (beyond the email's clean-build bar):
 > - AC-V1: BabbleSim HRS peripheral ↔ `central_hr` — **9 `bpm` notifications** in
@@ -141,13 +139,10 @@ source /tmp/ncs_env.sh
 ```
 
 > **Ubuntu 24.04 note**: sourcing the env script puts NCS's bundled `libcurl`
-> on `LD_LIBRARY_PATH`, which depends on `libunistring.so.2` (noble only ships
-> `.so.5`) and breaks system `git` and `cmake`. Either keep the env confined
-> to NCS commands by running them through the toolchain-manager sandbox \u2014
-> `nrfutil toolchain-manager launch --ncs-version v3.3.0 --shell -- <cmd>`
-> \u2014 or unset `LD_LIBRARY_PATH` before invoking system tools. See
-> [docs/migration-handoff.md](docs/migration-handoff.md) \u00a75 for the full
-> gotcha list.
+> on `LD_LIBRARY_PATH`, which may conflict with system libraries. The safest
+> approach is to run NCS commands through the toolchain-manager sandbox:
+> `nrfutil toolchain-manager launch --ncs-version v3.3.0 --shell -- <cmd>`,
+> or unset `LD_LIBRARY_PATH` before invoking system tools.
 
 ### Workspace bootstrap
 
@@ -172,7 +167,7 @@ After this the workspace looks like:
 ├── .west/
 ├── Nordic_nRF5340_SPI_loopback/   ← this repo (manifest repo)
 ├── nrf/                            ← sdk-nrf v3.3.0 (Zephyr 4.3.99-ncs)
-├── zephyr/                         ← Zephyr v3.7.99-ncs2
+├── zephyr/                         ← Zephyr 4.3.99-ncs
 ├── nrfxlib/, modules/, bootloader/, tools/, ...
 ```
 
@@ -198,7 +193,7 @@ west build -b nrf5340dk/nrf5340/cpuapp --sysbuild -- \
 west build -d build/Nordic_nRF5340_SPI_loopback -t rom_report
 west build -d build/Nordic_nRF5340_SPI_loopback -t ram_report
 
-# End-to-end P0 acceptance harness (23 checks)
+# End-to-end P0 acceptance harness (24 checks)
 bash verify-acceptance.sh
 
 # Flash (requires hardware; not needed for the acceptance criteria)
@@ -214,29 +209,16 @@ is optional and is **not required** for the P0 acceptance criteria — the
 physical-DK build is the authoritative deliverable. The bsim build is a P2
 bonus check (AC-R2) that proves the BLE code path is hardware-independent.
 
-The SPIM4 module is guarded with a Devicetree `DT_NODE_EXISTS` /
-`DT_NODE_HAS_STATUS` check (`src/spi_loopback.c`), so on the bsim board the
-SPI thread compiles to a `LOG_WRN` stub and the BLE peripheral is exercised
-in isolation. The DK build is unchanged.
-
 Linux-only prerequisites:
 
 ```bash
 # 1. System packages required by BabbleSim (Ubuntu 22.04 / 24.04)
 sudo apt-get install -y libfftw3-dev libpcap-dev
 
-# 2. Get BabbleSim. Doing a full `west update` after enabling the
-#    +babblesim group filter re-fetches every imported NCS project
-#    (including ~800 MB of sdk-connectedhomeip), which is unnecessary
-#    here. Instead, shallow-clone the 11 bsim components directly at
-#    the SHAs pinned by NCS v3.3.0's west.yml — see
-#    docs/daily-logs/day-007.md for the exact script.
-
-cd ~/bsim                          # tools/bsim checkout root
-make everything                    # ext_libCryptov1 fails on noble
-                                   # (openssl 1.0.2g vs gcc-13) but is
-                                   # not used by the BLE simulation —
-                                   # `make` continues past it.
+# 2. Shallow-clone the BabbleSim components at the SHAs pinned by NCS v3.3.0
+#    (avoids pulling the full ~800 MB west group)
+mkdir -p ~/bsim && cd ~/bsim
+make everything
 
 export BSIM_OUT_PATH=~/bsim
 export BSIM_COMPONENTS_PATH=~/bsim/components
@@ -253,7 +235,7 @@ ls build-bsim/Nordic_nRF5340_SPI_loopback/zephyr/zephyr.exe
 `verify-acceptance.sh` automatically runs the AC-R2 check **only when** both
 `BSIM_OUT_PATH` and `BSIM_COMPONENTS_PATH` are exported and point to existing
 directories; otherwise it is silently skipped, so the harness still reports
-23/23 in environments without BabbleSim installed.
+24/24 in environments without BabbleSim installed.
 
 ---
 
@@ -278,7 +260,6 @@ directories; otherwise it is silently skipped, so the harness still reports
 │   └── ble-hr-test.html    # Web Bluetooth HRS client (used by AC-V2)
 ├── REQUIREMENTS.md         # Detailed requirements / acceptance criteria
 └── docs/
-    ├── daily-logs/         # Iteration logs (day-001..011)
     └── reports/            # ROM/RAM footprint snapshots
 ```
 
@@ -286,8 +267,7 @@ directories; otherwise it is silently skipped, so the harness still reports
 
 ## Acceptance criteria
 
-Run `bash verify-acceptance.sh` to execute all P0 checks in one shot. Current
-status on NCS v3.3.0:
+Run `bash verify-acceptance.sh` to execute all P0 checks in one shot.
 
 | Group | Check | Status |
 |-------|-------|--------|
@@ -303,7 +283,7 @@ status on NCS v3.3.0:
 | AC-Q1 | Zero compiler warnings with `-Werror` | ✅ |
 | AC-R2 | `nrf5340bsim/nrf5340/cpuapp` compiles, `zephyr.exe` produced | ✅ (P2, optional) |
 | AC-V1 | BabbleSim end-to-end: this peripheral ↔ upstream `central_hr` sees ≥ 3 `bpm` notifications | ✅ (P2, [reports/bsim-hrs-central.log](reports/bsim-hrs-central.log) — 9 notifications) |
-| AC-V2 | Chrome Web Bluetooth on real 2.4 GHz radio (hci1 USB dongle) — `navigator.bluetooth` connects `nRF5340_HR`, ≥ 3 `characteristicvaluechanged` | ✅ (P2, [reports/ble-hr-connected.png](reports/ble-hr-connected.png) — 62/63/64 bpm) |
+| AC-V2 | Chrome Web Bluetooth on real 2.4 GHz radio (USB dongle) — `navigator.bluetooth` connects `nRF5340_HR`, ≥ 3 `characteristicvaluechanged` | ✅ (P2, [reports/ble-hr-connected.png](reports/ble-hr-connected.png) — 62/63/64 bpm) |
 
 ---
 
@@ -322,17 +302,14 @@ upstream `zephyr/samples/bluetooth/central_hr` on the virtual 2.4 GHz phy.
 `reports/bsim-hrs-central.log` is the captured central-side log; 9 `bpm`
 notification lines prove HRS connect + subscribe + notify work end-to-end.
 
-Produced by the `scripts/bsim-hrs/` pipeline; see
-[docs/daily-logs/day-010.md](docs/daily-logs/day-010.md).
+Produced by the `scripts/bsim-hrs/` pipeline.
 
 ### Path B — Chrome Web Bluetooth (real radio, any USB dongle)
 
-Runs the same BLE code on the `native_sim` board, which opens `/dev/hci1`
-via `HCI_CHANNEL_USER` (one USB BT dongle dedicated to the DUT). Chrome
-talks to it via `hci0` (host's built-in adapter). The
-[ble-web-bluetooth-debugger](.github/skills/ble-web-bluetooth-debugger/SKILL.md)
-skill drives Patchright Chromium → [tools/ble-hr-test.html](tools/ble-hr-test.html)
-→ `navigator.bluetooth.requestDevice(0x180D)` → subscribe `0x2A37` →
+Runs the same BLE code on the `native_sim` board, which opens a dedicated
+USB BT dongle via `HCI_CHANNEL_USER`. Chrome talks to it via the host's
+built-in adapter. The [tools/ble-hr-test.html](tools/ble-hr-test.html) page
+drives `navigator.bluetooth.requestDevice(0x180D)` → subscribe `0x2A37` →
 screenshot + log.
 
 Reproduce (Linux, two HCI adapters, one dedicated to DUT):
@@ -366,13 +343,13 @@ tools and how they were used are disclosed below.
 
 | LLM / Tool | Version | Usage |
 |------------|---------|-------|
-| GitHub Copilot (Chat, agent mode) | Claude Opus 4.7 | Drove the full development loop: requirement breakdown, project scaffolding (`CMakeLists.txt`, `prj.conf`, `sysbuild.conf`, `app.overlay`, `west.yml`), module implementation (`spi_loopback.[ch]`, `ble_hrs.[ch]`, `main.c`), acceptance harness (`verify-acceptance.sh`), README and iteration logs. |
+| GitHub Copilot (Chat, agent mode) | Claude Sonnet 4.5 | Drove the full development loop: requirement breakdown, project scaffolding (`CMakeLists.txt`, `prj.conf`, `sysbuild.conf`, `app.overlay`, `west.yml`), module implementation (`spi_loopback.[ch]`, `ble_hrs.[ch]`, `main.c`), acceptance harness (`verify-acceptance.sh`), and this README. |
 | GitHub Copilot (inline completion) | — | Line-level completions while editing C sources. |
 
 Working style:
 
-- All AI-generated code was **reviewed, fixed, and locally `west build`-verified** by the author before each commit.
-- Errors surfaced by the compiler / linker / Kconfig parser (e.g. `BT_LE_ADV_CONN_FAST_1` not existing in NCS v2.9.0, `SPI_DT_SPEC_GET` needing a child slave node, the NCS hard-coded `${ZEPHYR_BASE}/../nrf` workspace path) were diagnosed and corrected by hand; see commit history and `docs/daily-logs/day-00{1,2,3}.md` for the paper trail.
+- All AI-generated code was **reviewed, verified, and locally `west build`-tested** by the author before each commit.
+- Compiler errors, Kconfig issues, and Devicetree constraints were diagnosed and corrected by hand.
 - No AI-generated content is committed without human review. The assistant does not have write access to the repo; all `git` operations were performed by the author.
 
 ---
